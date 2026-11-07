@@ -198,6 +198,21 @@ export function VulnFlowShell({
   };
 
   const requestApproval = (finding: Finding) => void onCreateApproval(finding.id, approvalAction);
+  const [workflowBusy,setWorkflowBusy] = useState(false);
+  const [workflowNotice,setWorkflowNotice] = useState("");
+  const runReviewWorkflow = async (finding: Finding) => {
+    if (workflowBusy) return;
+    setWorkflowBusy(true); setWorkflowNotice("");
+    try {
+      onAnalyzeFinding(finding.id);
+      await onTransition(finding.id, "investigating", "Started evidence-grounded review workflow.");
+      await onCreateApproval(finding.id, "propose_remediation");
+      await onRefresh();
+      setWorkflowNotice("Review brief requested, finding moved to Investigating, and a human remediation decision was created. No patch was generated or executed.");
+    } catch {
+      setWorkflowNotice("The workflow did not complete. Check the action error above and refresh the workspace before retrying.");
+    } finally { setWorkflowBusy(false); }
+  };
 
   return <div className="vf-shell">
     <aside className="vf-sidebar" aria-label="Primary navigation">
@@ -285,6 +300,12 @@ export function VulnFlowShell({
                   </div>
                   <p className="vf-analysis-limit">{reviewBrief.limitations.join(" ")}</p>
                 </> : <p className="vf-empty-inline">Generate a deterministic brief from the imported observations, locations and evidence. No target is contacted and no vulnerability is independently verified.</p>}
+              </section>
+              <section className="vf-subsection vf-card">
+                <SectionHeading eyebrow="Guided workflow" title="Investigate → request human review" />
+                <p className="vf-muted-copy">One action runs the existing evidence-brief endpoint, records the Investigating transition, and creates a remediation approval request. This does not generate or apply a patch, and the approval remains a human decision.</p>
+                <button type="button" className="vf-button vf-button--primary" disabled={workflowBusy} onClick={() => void runReviewWorkflow(selected)}>{workflowBusy ? "Recording workflow…" : "Run review workflow"}</button>
+                {workflowNotice && <p className="vf-empty-inline" role="status">{workflowNotice}</p>}
               </section>
               <div className="vf-note"><strong>Severity reasoning</strong><p>Not recorded by the imported report or current API.</p></div>
               <div className="vf-note"><strong>Agent assessments and disagreements</strong><p>Not recorded. This workspace does not synthesize reviewer opinions.</p></div>
