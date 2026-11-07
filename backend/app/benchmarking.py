@@ -53,14 +53,17 @@ class BifrostClient:
         headers = {"x-bf-vk": self.key}
         data, latency = _post_json(
             f"{self.base}/v1/chat/completions",
-            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 512},
+            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 512, "reasoning_effort": "none"},
             headers,
         )
         choice = (data.get("choices") or [{}])[0]
         message = choice.get("message") or {}
         usage = data.get("usage") or {}
+        output = str(message.get("content") or "").strip()
+        if not output:
+            raise RuntimeError("Model returned no final answer; refusing to count an empty completion as success")
         return {
-            "output": str(message.get("content") or ""),
+            "output": output,
             "model": data.get("model", self.model),
             "prompt_tokens": int(usage.get("prompt_tokens") or 0),
             "completion_tokens": int(usage.get("completion_tokens") or 0),
@@ -91,7 +94,7 @@ class DirectResearchAgent(AgentAdapter):
     def __init__(self, llm: BifrostClient) -> None: self.llm = llm
     def execute(self, task: dict[str, Any], fault: str | None = None) -> dict[str, Any]:
         result = self.llm.complete(
-            "Answer the research task accurately. State uncertainty and do not invent sources.",
+            "Answer the research task accurately in at most 120 words. State uncertainty and do not invent sources. Return the final answer directly.",
             task["prompt"], fault,
         )
         result.update({"steps": 1, "tool_calls": 0, "trace": [{"step": 1, "kind": "model", "model": result["model"], "latency_ms": result["latency_ms"]}]})
@@ -107,7 +110,7 @@ class TavilyResearchAgent(AgentAdapter):
         search = self.search.search(task["prompt"], fault)
         sources = [{"title": x.get("title", ""), "url": x.get("url", ""), "content": str(x.get("content", ""))[:3000]} for x in search["results"]]
         result = self.llm.complete(
-            "Answer using only the supplied research where possible. Cite source URLs inline. Identify gaps and uncertainty.",
+            "Answer in at most 150 words using only the supplied research where possible. Cite source URLs inline. Identify gaps and uncertainty. Return the final answer directly.",
             task["prompt"] + "\n\nResearch sources:\n" + json.dumps(sources, ensure_ascii=False), fault,
         )
         result.update({
