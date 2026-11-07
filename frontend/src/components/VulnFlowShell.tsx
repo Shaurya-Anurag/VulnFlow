@@ -78,7 +78,7 @@ function ActivityRows({ events, empty = "No activity has been recorded." }: { ev
       <span className="vf-activity__dot" aria-hidden="true" />
       <div className="vf-activity__body">
         <div className="vf-activity__top"><strong>{event.action}</strong><time>{dateLabel(event.created_at)}</time></div>
-        <p>{event.outcome || "Recorded"}{event.target ? ` Â· ${event.target}` : ""}</p>
+        <p>{event.outcome || "Recorded"}{event.target ? ` · ${event.target}` : ""}</p>
         {event.details && Object.keys(event.details).length > 0 && <details>
           <summary>Recorded details</summary>
           <pre>{JSON.stringify(event.details, null, 2)}</pre>
@@ -106,7 +106,7 @@ function FindingRows({
   selectedId: string | null;
   onSelect: (finding: Finding) => void;
 }) {
-  if (!findings.length) return <div className="vf-empty-panel"><span className="vf-empty-icon">â€”</span><h3>No findings here</h3><p>Import a SARIF 2.1.0 or VulnFlow JSON v1 report to populate this view.</p></div>;
+  if (!findings.length) return <div className="vf-empty-panel"><span className="vf-empty-icon">—</span><h3>No findings here</h3><p>Import a SARIF 2.1.0 or VulnFlow JSON v1 report to populate this view.</p></div>;
   return <div className="vf-finding-list">
     {findings.map((finding) => <button
       type="button"
@@ -116,7 +116,7 @@ function FindingRows({
       onClick={() => onSelect(finding)}
     >
       <FindingBadge finding={finding} />
-      <span className="vf-finding-row__main"><strong>{finding.title}</strong><small>{finding.rule_id || "Rule not recorded"} Â· {finding.resource || "Resource not recorded"}</small></span>
+      <span className="vf-finding-row__main"><strong>{finding.title}</strong><small>{finding.rule_id || "Rule not recorded"} · {finding.resource || "Resource not recorded"}</small></span>
       <span className="vf-finding-row__date">{dateLabel(finding.updated_at)}</span>
     </button>)}
   </div>;
@@ -205,12 +205,12 @@ export function VulnFlowShell({
 
     <main className="vf-main">
       <header className="vf-commandbar">
-        <label className="vf-search"><span aria-hidden="true">âŒ•</span><input aria-label="Search findings" placeholder="Search findings, rules, resources..." value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+        <label className="vf-search"><span aria-hidden="true">⌕</span><input aria-label="Search findings" placeholder="Search findings, rules, resources..." value={search} onChange={(event) => setSearch(event.target.value)} /></label>
         <div className="vf-commandbar__actions">
           <span className="vf-local-label"><span className="vf-local-dot" />LOCAL ONLY</span>
           <label className="vf-button vf-button--secondary" htmlFor="vf-import-file">Import report</label>
           <input id="vf-import-file" className="vf-visually-hidden" type="file" accept=".sarif,.json,application/json" onChange={handleImport} />
-          <button className="vf-button vf-button--primary" type="button" onClick={() => void onRefresh()} disabled={loading}>{loading ? "Refreshingâ€¦" : "Refresh"}</button>
+          <button className="vf-button vf-button--primary" type="button" onClick={() => void onRefresh()} disabled={loading}>{loading ? "Refreshing..." : "Refresh"}</button>
         </div>
       </header>
 
@@ -220,7 +220,7 @@ export function VulnFlowShell({
         </header>
 
         {error && <div className="vf-alert" role="alert"><strong>Action needs attention</strong><span>{error}</span></div>}
-        {loading && !summary && <div className="vf-loading" role="status">Loading local workspaceâ€¦</div>}
+        {loading && !summary && <div className="vf-loading" role="status">Loading local workspace...</div>}
 
         {view === "overview" && <>
           <section className="vf-metric-grid" aria-label="Workspace summary">
@@ -233,7 +233,7 @@ export function VulnFlowShell({
 
           <div className="vf-overview-grid">
             <section className="vf-card vf-card--wide">
-              <SectionHeading eyebrow="Triage" title="Findings by severity" aside={<button type="button" className="vf-text-button" onClick={() => setView("findings")}>View findings â†’</button>} />
+              <SectionHeading eyebrow="Triage" title="Findings by severity" aside={<button type="button" className="vf-text-button" onClick={() => setView("findings")}>View findings →</button>} />
               <div className="vf-severity-chart">
                 {(["critical", "high", "medium", "low", "info", "unknown"] as const).map((severity) => {
                   const value = summary?.by_severity[severity] ?? 0;
@@ -248,7 +248,7 @@ export function VulnFlowShell({
             </section>
           </div>
 
-          <section className="vf-card"><SectionHeading eyebrow="Latest events" title="Recent activity" aside={<button type="button" className="vf-text-button" onClick={() => setView("audit")}>Open audit â†’</button>} />
+          <section className="vf-card"><SectionHeading eyebrow="Latest events" title="Recent activity" aside={<button type="button" className="vf-text-button" onClick={() => setView("audit")}>Open audit →</button>} />
             <ActivityRows events={activities.slice(0, 5)} empty="No imports, transitions, approvals, or agent events have been recorded." />
           </section>
         </>}
@@ -270,7 +270,7 @@ export function VulnFlowShell({
                 {selected.evidence.length ? <div className="vf-evidence-list">{selected.evidence.map((evidence) => <article className="vf-evidence" key={evidence.id}><span>{evidence.kind}</span>{evidence.uri && <code>{evidence.uri}</code>}<pre>{evidence.excerpt || "Evidence locator recorded; no excerpt supplied."}</pre><small>Content hash: {evidence.source_hash || "Not recorded"}</small></article>)}</div> : <p className="vf-empty-inline">No evidence attached to this finding.</p>}
               </section>
               <section className="vf-subsection"><SectionHeading title="Provenance" />
-                {selected.observations.length ? <div className="vf-provenance-list">{selected.observations.map((observation) => <article className="vf-provenance" key={observation.id}><strong>{observation.source_name || "Imported report"}</strong><span>{observation.tool_name || "Tool not recorded"}{observation.tool_version ? ` Â· ${observation.tool_version}` : ""}</span><small>{dateLabel(observation.imported_at)} Â· SHA-256 {observation.source_hash || "Not recorded"}</small></article>)}</div> : <p className="vf-empty-inline">No import provenance is recorded.</p>}
+                {selected.observations.length ? <div className="vf-provenance-list">{selected.observations.map((observation) => <article className="vf-provenance" key={observation.id}><strong>{observation.source_name || "Imported report"}</strong><span>{observation.tool_name || "Tool not recorded"}{observation.tool_version ? ` · ${observation.tool_version}` : ""}</span><small>{dateLabel(observation.imported_at)} · SHA-256 {observation.source_hash || "Not recorded"}</small></article>)}</div> : <p className="vf-empty-inline">No import provenance is recorded.</p>}
               </section>
               <section className="vf-subsection"><SectionHeading title="Investigation history" />
                 <ActivityRows events={relatedEvents} empty="No activity is linked to this finding." />
@@ -314,7 +314,7 @@ export function VulnFlowShell({
           <ActivityRows events={activities} empty="No audit events are recorded." />
         </section>}
 
-        <footer className="vf-footer"><span>VulnFlow Â· Local-first review</span><span>Imported data is untrusted Â· No scanning or patch execution</span></footer>
+        <footer className="vf-footer"><span>VulnFlow · Local-first review</span><span>Imported data is untrusted · No scanning or patch execution</span></footer>
       </div>
     </main>
   </div>;
