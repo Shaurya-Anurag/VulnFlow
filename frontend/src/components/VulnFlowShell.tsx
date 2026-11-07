@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import "./VulnFlowShell.css";
 import { BenchmarkView } from "./BenchmarkView";
+import type { AgentWorkflowResult } from "../api";
 
 export interface VulnFlowShellProps {
   summary: DashboardSummary | null;
@@ -23,6 +24,9 @@ export interface VulnFlowShellProps {
   onAnalyzeFinding: (id: string) => void;
   reviewBrief: ReviewBrief | null;
   analysisLoading: boolean;
+  onRunAgentWorkflow: (findingId: string) => void | Promise<void>;
+  agentWorkflow: AgentWorkflowResult | null;
+  agentWorkflowLoading: boolean;
   onTransition: (findingId: string, status: FindingStatus, reason: string) => void | Promise<void>;
   onCreateApproval: (findingId: string, action: string) => void | Promise<void>;
   onDecideApproval: (approvalId: string, decision: "approved" | "rejected", reason: string) => void | Promise<void>;
@@ -308,7 +312,15 @@ export function VulnFlowShell({
                 {workflowNotice && <p className="vf-empty-inline" role="status">{workflowNotice}</p>}
               </section>
               <div className="vf-note"><strong>Severity reasoning</strong><p>Not recorded by the imported report or current API.</p></div>
-              <div className="vf-note"><strong>Agent assessments and disagreements</strong><p>Not recorded. This workspace does not synthesize reviewer opinions.</p></div>
+              <section className="vf-subsection vf-card">
+                <SectionHeading eyebrow="Multi-agent investigation" title="Specialist handoff chain" aside={<button type="button" className="vf-button vf-button--primary" disabled={agentWorkflowLoading} onClick={() => void onRunAgentWorkflow(selected.id)}>{agentWorkflowLoading ? "Agents working…" : "Run 4-agent investigation"}</button>} />
+                <p className="vf-muted-copy">Four sequential Bifrost calls: Sentinel triage → Analyst exploitability → Architect remediation → Verifier critique. Each specialist receives prior handoffs. Analysis only: no repository access, code execution, patching, or independent verification.</p>
+                {agentWorkflow?.finding_id === selected.id && <div className="vf-agent-chain">
+                  <p className="vf-soft-tag">Run {agentWorkflow.run_id.slice(0, 8)} · {agentWorkflow.status}</p>
+                  {agentWorkflow.agents.map((agent) => <article className="vf-evidence" key={agent.agent}><div className="vf-section-heading"><strong>{agent.agent.toUpperCase()} · {agent.role}</strong><small>{Math.round(agent.duration_ms)} ms</small></div><pre>{agent.output}</pre></article>)}
+                  <p className="vf-analysis-limit">{agentWorkflow.execution_policy}</p>
+                </div>}
+              </section>
               <section className="vf-subsection"><SectionHeading title="Recorded evidence" />
                 {selected.evidence.length ? <div className="vf-evidence-list">{selected.evidence.map((evidence) => <article className="vf-evidence" key={evidence.id}><span>{evidence.kind}</span>{evidence.uri && <code>{evidence.uri}</code>}<pre>{evidence.excerpt || "Evidence locator recorded; no excerpt supplied."}</pre><small>Content hash: {evidence.source_hash || "Not recorded"}</small></article>)}</div> : <p className="vf-empty-inline">No evidence attached to this finding.</p>}
               </section>
