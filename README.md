@@ -63,3 +63,30 @@ Run backend tests from repository root:
 ```powershell
 python -m unittest discover -s tests/backend -v
 ```
+
+
+## Guided review workflow
+
+The Investigations view includes a **Run review workflow** action for a selected imported finding. It connects existing local capabilities in sequence:
+
+1. Requests the deterministic, evidence-grounded investigation brief.
+2. Records the finding's transition to `investigating`.
+3. Creates a `propose_remediation` approval request for a human decision.
+4. Refreshes the workspace so the updated state and approval are visible.
+
+This is workflow orchestration across existing API actions, not an autonomous remediation agent. It does not generate, modify, execute, or verify a patch. The approval records a decision only.
+
+## Demo walkthrough (under 3 minutes)
+
+1. Start the backend and frontend using the Development instructions.
+2. Import a SARIF 2.1.0 or VulnFlow JSON v1 report containing at least one finding.
+3. Open **Investigations**, select the finding, and generate its review brief. Show the evidence, provenance, gaps, and recommended checks.
+4. Click **Run review workflow**. Show the Investigating lifecycle state and the newly created remediation approval.
+5. Open **Approvals**, enter a reason, and approve or reject the proposal. Explain that this records a human decision; it does not apply a patch.
+6. Optionally open **Audit** to show the recorded application events.
+
+For the agent benchmark demonstration, open **Benchmarks**, run a security task, and expand a run to inspect its model, trace, sources, and heuristic evaluation criteria. Heuristic scores are lexical screening signals, not proof of correctness.
+
+## Switch integration disclosure
+
+The current repository does not implement live Switch roster/session connectivity or demonstrate a shared-room agent handoff. The Agent Network view explicitly reports this limitation. Do not describe the current benchmark adapters as Switch-connected agents unless that integration is implemented and verified.
