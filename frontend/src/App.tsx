@@ -5,10 +5,12 @@ import {
   importReport,
   loadDashboard,
   loadReviewBrief,
+  runAgentWorkflow,
   transitionFinding,
 } from "./api";
 import { VulnFlowShell } from "./components/VulnFlowShell";
 import type { DashboardData, FindingStatus, ReviewBrief } from "./types";
+import type { AgentWorkflowResult } from "./api";
 import "./styles.css";
 
 export function App() {
@@ -17,6 +19,8 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [reviewBrief, setReviewBrief] = useState<ReviewBrief | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [agentWorkflow, setAgentWorkflow] = useState<AgentWorkflowResult | null>(null);
+  const [agentWorkflowLoading, setAgentWorkflowLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -42,6 +46,18 @@ export function App() {
       setError(caught instanceof Error ? caught.message : "Unable to prepare the review brief.");
     } finally {
       setAnalysisLoading(false);
+    }
+  }, []);
+
+  const handleAgentWorkflow = useCallback(async (findingId: string) => {
+    setAgentWorkflowLoading(true);
+    setAgentWorkflow(null);
+    try {
+      setAgentWorkflow(await runAgentWorkflow(findingId));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The specialist-agent workflow failed.");
+    } finally {
+      setAgentWorkflowLoading(false);
     }
   }, []);
 
