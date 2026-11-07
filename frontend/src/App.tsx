@@ -118,6 +118,9 @@ export function App() {
       onAnalyzeFinding={handleAnalyze}
       reviewBrief={reviewBrief}
       analysisLoading={analysisLoading}
+      onRunAgentWorkflow={handleAgentWorkflow}
+      agentWorkflow={agentWorkflow}
+      agentWorkflowLoading={agentWorkflowLoading}
       onTransition={handleTransition}
       onCreateApproval={handleCreateApproval}
       onDecideApproval={handleDecision}
