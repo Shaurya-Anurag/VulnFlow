@@ -42,13 +42,15 @@ class AgentAdapter(ABC):
 class BifrostClient:
     def __init__(self) -> None:
         self.base = os.getenv("BIFROST_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
-        self.key = os.getenv("BIFROST_API_KEY", "")
-        self.model = os.getenv("BIFROST_MODEL", "openai/gpt-4o-mini")
+        self.key = os.getenv("BIFROST_VIRTUAL_KEY", os.getenv("BIFROST_API_KEY", ""))
+        self.model = os.getenv("BIFROST_MODEL", "ollama/qwen3:4b")
 
     def complete(self, system: str, user: str, fault: str | None = None) -> dict[str, Any]:
         if fault == "model_unavailable":
             raise RuntimeError("Injected fault: model unavailable")
-        headers = {"Authorization": f"Bearer {self.key}"} if self.key else {}
+        if not self.key:
+            raise RuntimeError("BIFROST_VIRTUAL_KEY is not configured; refusing unauthenticated or paid-provider inference")
+        headers = {"x-bf-vk": self.key}
         data, latency = _post_json(
             f"{self.base}/v1/chat/completions",
             {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]},
