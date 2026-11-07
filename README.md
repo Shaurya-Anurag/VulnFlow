@@ -76,6 +76,21 @@ The Investigations view includes a **Run review workflow** action for a selected
 
 This is workflow orchestration across existing API actions, not an autonomous remediation agent. It does not generate, modify, execute, or verify a patch. The approval records a decision only.
 
+## Specialist-agent investigation
+
+The Investigations view also exposes **Run 4-agent investigation**. This executes four sequential calls through the configured Bifrost gateway:
+
+1. **Sentinel** — triage and classify the imported report.
+2. **Analyst** — reason about exploitability, preconditions, impact, and uncertainty.
+3. **Architect** — propose remediation guidance and validation tests.
+4. **Verifier** — independently critique the preceding handoffs for unsupported claims, gaps, and residual risk.
+
+Each stage receives the prior agents' outputs. Run metadata, per-agent status, outputs, errors, and duration are persisted in local SQLite. API routes:
+- POST /api/findings/{finding_id}/agent-workflow
+- GET /api/agent-workflows/{run_id}
+
+This is actual sequential multi-call orchestration, not concurrent agents or a shared Switch room. It is analysis-only: agents have no repository access, do not execute code or tests, do not apply patches, and do not independently verify vulnerabilities. A failed stage marks the run failed; automatic retries and recovery are not implemented. Configure BIFROST_VIRTUAL_KEY, BIFROST_BASE_URL, and BIFROST_MODEL in the backend environment.
+
 ## Demo walkthrough (under 3 minutes)
 
 1. Start the backend and frontend using the Development instructions.
