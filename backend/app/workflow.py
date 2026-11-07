@@ -91,6 +91,17 @@ def create_approval(conn: sqlite3.Connection, finding_id: str, action: str, targ
     with transaction(conn):
         if conn.execute("SELECT 1 FROM findings WHERE id=?", (finding_id,)).fetchone() is None:
             raise ApprovalError("finding does not exist")
+        # Idempotency: a finding can have only one live pending request for a
+        # given action. BEGIN IMMEDIATE (via transaction()) serializes concurrent
+        # writers so simultaneous retries cannot both create an approval.
+        existing = conn.execute(
+            """SELECT * FROM approvals
+               WHERE finding_id=? AND action=? AND state='pending' AND expires_at>?
+               ORDER BY created_at DESC,id LIMIT 1""",
+            (finding_id, action, now.isoformat()),
+        ).fetchone()
+        if existing is not None:
+            return _approval(existing)
         conn.execute("""INSERT INTO approvals(id,finding_id,action,target,parameters_json,parameter_sha256,
             requester,state,created_at,expires_at) VALUES(?,?,?,?,?,?,?,'pending',?,?)""",
             (approval_id, finding_id, action, target, params_json, digest, requester[:128], now.isoformat(), expiry.astimezone(timezone.utc).isoformat()))
