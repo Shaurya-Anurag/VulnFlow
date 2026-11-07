@@ -320,5 +320,51 @@ class LifecycleApprovalAndAuditTests(DatabaseTestCase):
             self.conn.execute("DELETE FROM audit_events WHERE id=?", (events[0].id,))
 
 
+class AgentOrchestrationTests(DatabaseTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.finding_id = self.make_finding(
+            sarif_document(sarif_result(evidence="user input reaches database query"))
+        )
+
+    def test_specialist_agents_receive_handoffs_and_persist_trace(self) -> None:
+        from backend.app import orchestration
+
+        outputs = [
+            "Triage: scanner reports SQL injection. Evidence is limited.",
+            "Analysis: exploitability depends on controllable input and query construction.",
+            "Plan: use parameterized queries and add regression tests.",
+            "Review: proposal is reasonable; verify query call sites and authorization boundaries.",
+        ]
+        calls = []
+
+        class FakeBifrost:
+            def complete(self, system, user, fault=None):
+                calls.append(user)
+                return {"output": outputs[len(calls) - 1], "model": "test/fake"}
+
+        finding = {
+            "id": self.finding_id, "title": "Example alert", "severity": "high",
+            "status": "reported", "resource": "src/example.py", "rule_id": "DEMO-001",
+            "description": "Example alert", "evidence": [{"excerpt": "user input reaches database query"}],
+            "observations": [{"tool_name": "UnitTestScanner"}],
+        }
+        with patch.object(orchestration, "BifrostClient", FakeBifrost):
+            result = orchestration.run_agent_workflow(self.db_path, finding)
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual([item["agent"] for item in result["agents"]],
+                         ["sentinel", "analyst", "architect", "verifier"])
+        self.assertEqual(len(calls), 4)
+        self.assertIn(outputs[0], calls[1])
+        self.assertIn(outputs[1], calls[2])
+        self.assertIn(outputs[2], calls[3])
+        self.assertIn("no repository access", result["execution_policy"])
+        detail = orchestration.get_agent_workflow(self.db_path, result["run_id"])
+        self.assertEqual(detail["run"]["status"], "completed")
+        self.assertEqual([step["status"] for step in detail["steps"]],
+                         ["completed"] * 4)
+
+
 if __name__ == "__main__":
     unittest.main()
