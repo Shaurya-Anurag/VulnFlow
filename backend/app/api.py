@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from .audit import list_events
 from .analysis import build_review_brief
+from .benchmarking import run_experiment
 from .db import connect, transaction
 from .importers import parse_import, persist_import
 from .models import ApprovalError, ImportValidationError, WorkflowConflict
@@ -339,3 +340,34 @@ def finding_analysis(finding_id: str, request: Request) -> dict[str, Any]:
         return build_review_brief(dict(row), [dict(item) for item in observations],
                                   [dict(item) for item in evidence])
 
+
+
+@router.post("/benchmarks/run")
+def create_benchmark(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
+    """Run the same research task through two adapters for repeated trials."""
+    task = payload.get("task")
+    repetitions = payload.get("repetitions", 2)
+    fault = payload.get("fault")
+    if not isinstance(task, dict) or not isinstance(task.get("prompt"), str):
+        raise HTTPException(status_code=422, detail="task.prompt is required")
+    if not isinstance(repetitions, int) or isinstance(repetitions, bool):
+        raise HTTPException(status_code=422, detail="repetitions must be an integer")
+    try:
+        return run_experiment(_db_path(request), task, repetitions, fault)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.get("/benchmarks/{experiment_id}")
+def benchmark_detail(experiment_id: str, request: Request) -> dict[str, Any]:
+    experiment_id = _valid_id(experiment_id)
+    with _connection(request) as conn:
+        experiment = conn.execute("SELECT * FROM benchmark_experiments WHERE id=?", (experiment_id,)).fetchone()
+        if experiment is None:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+        runs = conn.execute("SELECT * FROM benchmark_runs WHERE experiment_id=? ORDER BY repetition,agent",
+                            (experiment_id,)).fetchall()
+    return {"experiment": dict(experiment), "runs": [
+        {**dict(row), "trace": json.loads(row["trace_json"]), "sources": json.loads(row["sources_json"])}
+        for row in runs
+    ]}
