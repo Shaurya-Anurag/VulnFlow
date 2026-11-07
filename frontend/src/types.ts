@@ -85,3 +85,22 @@ export interface DashboardData {
   activities: ActivityEvent[];
   approvals: Approval[];
 }
+
+
+export interface ReviewBrief {
+  finding_id: string;
+  title: string;
+  reported_severity: string;
+  workflow_state: string;
+  review_status: string;
+  verification_claim: string;
+  summary: string;
+  observations: number;
+  evidence: { kind: string; locator: string; excerpt: string; has_excerpt: boolean; content_sha256: string }[];
+  locations: Record<string, unknown>[];
+  scanner_tools: { name: string; version: string; rule_id: string }[];
+  source_count: number;
+  gaps: string[];
+  recommended_checks: string[];
+  limitations: string[];
+}
