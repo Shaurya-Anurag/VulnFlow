@@ -275,7 +275,7 @@ export function VulnFlowShell({
                 <div className="vf-section-heading"><div><p className="vf-eyebrow">Evidence-grounded review</p><h2>Investigation brief</h2></div><button type="button" className="vf-button vf-button--primary" disabled={analysisLoading} onClick={() => onAnalyzeFinding(selected.id)}>{analysisLoading ? "Preparing..." : "Generate review brief"}</button></div>
                 {reviewBrief?.finding_id === selected.id ? <>
                   <p className="vf-analysis-summary">{reviewBrief.summary}</p>
-                  <div className="vf-detail-grid"><Info label="Review status" value={reviewBrief.review_status} /><Info label="Verification" value={reviewBrief.verification_claim} /><Info label="Observations" value={reviewBrief.observations} /><Info label="Source reports" value={reviewBrief.source_count} /></div>
+                  <div className="vf-detail-grid"><Info label="Review status" value={reviewBrief.review_status} /><Info label="Verification" value={reviewBrief.verification_claim} /><Info label="Observations" value={String(reviewBrief.observations)} /><Info label="Source reports" value={String(reviewBrief.source_count)} /></div>
                   <div className="vf-analysis-columns">
                     <div><strong>Evidence gaps</strong>{reviewBrief.gaps.length ? <ul>{reviewBrief.gaps.map((gap) => <li key={gap}>{gap}</li>)}</ul> : <p>No obvious metadata gaps detected.</p>}</div>
                     <div><strong>Recommended checks</strong><ul>{reviewBrief.recommended_checks.map((check) => <li key={check}>{check}</li>)}</ul></div>
