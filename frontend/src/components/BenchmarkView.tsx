@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Run = { id:string; agent:string; repetition:number; status:string; output:string; error:string; model:string; duration_ms:number; prompt_tokens:number; completion_tokens:number; tool_calls:number; steps:number; trace_json:string; sources_json:string };
 type Result = { experiment_id:string; status:string; repetitions:number; fault:string|null; agents:{agent:string;runs:number;success_rate:number;avg_duration_ms:number;avg_tokens:number;avg_tool_calls:number}[]; runs:Run[] };
@@ -8,10 +8,12 @@ export function BenchmarkView() {
   const [repetitions,setRepetitions]=useState(2);
   const [fault,setFault]=useState("none");
   const [busy,setBusy]=useState(false);
+  const [elapsed,setElapsed]=useState(0);
+  useEffect(()=>{ if(!busy) return; const started=Date.now(); const tick=()=>setElapsed(Math.floor((Date.now()-started)/1000)); tick(); const timer=window.setInterval(tick,1000); return ()=>window.clearInterval(timer); },[busy]);
   const [error,setError]=useState("");
   const [result,setResult]=useState<Result|null>(null);
   async function run() {
-    setBusy(true);setError("");setResult(null);
+    setBusy(true);setElapsed(0);setError("");setResult(null);
     try {
       const apiBase=(import.meta.env.VITE_API_BASE??"http://127.0.0.1:8000/api").replace(/\/$/,"");
       const response=await fetch(`${apiBase}/benchmarks/run`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task:{id:"security-research-001",category:"security",prompt},repetitions,fault:fault==="none"?null:fault})});
@@ -25,7 +27,8 @@ export function BenchmarkView() {
     <section className="vf-card"><div className="vf-section-heading"><div><p className="vf-eyebrow">Reproducible experiment</p><h2>Agent benchmark runner</h2></div><span className="vf-soft-tag">Research category</span></div>
       <p className="vf-empty-inline">Identical task → direct Bifrost agent vs Tavily-assisted Bifrost agent. Runs and traces are persisted locally. Configure BIFROST_BASE_URL, BIFROST_VIRTUAL_KEY, BIFROST_MODEL and TAVILY_API_KEY in the backend process. The UI uses VITE_API_BASE (default: http://127.0.0.1:8000/api).</p>
       <label className="vf-benchmark-label">Benchmark task<textarea value={prompt} onChange={e=>setPrompt(e.target.value)} rows={4}/></label>
-      <div className="vf-form-row"><label>Repeated trials<select value={repetitions} onChange={e=>setRepetitions(Number(e.target.value))}>{[1,2,3,5,10].map(n=><option key={n} value={n}>{n}</option>)}</select></label><label>Fault injection<select value={fault} onChange={e=>setFault(e.target.value)}><option value="none">Normal execution</option><option value="model_unavailable">Model unavailable</option><option value="tool_unavailable">Tavily unavailable</option></select></label><button className="vf-button vf-button--primary" disabled={busy||!prompt.trim()} onClick={()=>void run()}>{busy?"Executing agents…":"Run benchmark"}</button></div>
+      <div className="vf-form-row"><label>Repeated trials<select disabled={busy} value={repetitions} onChange={e=>setRepetitions(Number(e.target.value))}>{[1,2,3,5,10].map(n=><option key={n} value={n}>{n}</option>)}</select></label><label>Fault injection<select disabled={busy} value={fault} onChange={e=>setFault(e.target.value)}><option value="none">Normal execution</option><option value="model_unavailable">Model unavailable</option><option value="tool_unavailable">Tavily unavailable</option></select></label><button className="vf-button vf-button--primary" disabled={busy||!prompt.trim()} onClick={()=>void run()}>{busy?"Benchmark running…":"Run benchmark"}</button></div>
+      {busy&&<div role="status" aria-live="polite" style={{marginTop:18,padding:"16px 18px",border:"1px solid var(--vf-border, #493b46)",borderRadius:10,background:"rgba(111,43,77,.12)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><strong style={{display:"block",fontSize:14}}>Experiment in progress</strong><span style={{fontSize:12,opacity:.72}}>Backend is executing {repetitions*2} runs sequentially. Results will appear when all runs finish.</span></div><strong style={{fontVariantNumeric:"tabular-nums",fontSize:20}}>{Math.floor(elapsed/60)}:{String(elapsed%60).padStart(2,"0")}</strong></div><div style={{height:5,overflow:"hidden",borderRadius:99,background:"rgba(255,255,255,.10)",marginTop:14}}><div style={{height:"100%",width:"32%",borderRadius:99,background:"#c56b91",animation:"vf-benchmark-indeterminate 1.4s ease-in-out infinite alternate"}}/></div><style>{`@keyframes vf-benchmark-indeterminate{from{transform:translateX(-90%)}to{transform:translateX(220%)}}`}</style><p style={{fontSize:11,opacity:.6,margin:"10px 0 0"}}>Elapsed time only · this indicator does not estimate completion percentage. Do not refresh or close this page while the request is running.</p></div>}
     </section>
     {error&&<div className="vf-alert"><strong>Execution failed</strong><span>{error}</span></div>}
     {result&&<>
