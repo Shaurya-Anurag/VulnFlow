@@ -228,6 +228,31 @@ class LifecycleApprovalAndAuditTests(DatabaseTestCase):
             self.conn, self.finding_id, "propose_remediation", "finding:" + self.finding_id,
             {"ticket": "VF-123", "change": "patch"}, "vulnflow-remediation", expires_at.isoformat())
 
+    def test_pending_approval_creation_is_idempotent_for_same_finding_and_action(self) -> None:
+        first = self.create_approval()
+        second = self.create_approval()
+        third = self.create_approval()
+
+        self.assertEqual(first.id, second.id)
+        self.assertEqual(first.id, third.id)
+        self.assertEqual(first.state, "pending")
+        self.assertEqual(second.state, "pending")
+        self.assertEqual(third.state, "pending")
+        self.assertEqual(
+            self.scalar(
+                "SELECT COUNT(*) FROM approvals WHERE finding_id=? AND action=? AND state='pending'",
+                (self.finding_id, "propose_remediation"),
+            ),
+            1,
+        )
+        created_events = [
+            event for event in audit.list_events(
+                self.conn, entity_type="approval", entity_id=first.id
+            )
+            if event.event_type == "approval.created"
+        ]
+        self.assertEqual(len(created_events), 1)
+
     def test_approval_is_parameter_bound_replay_protected_and_not_self_approved(self) -> None:
         approval = self.create_approval()
         self.assertEqual(approval.requester, "vulnflow-remediation")
