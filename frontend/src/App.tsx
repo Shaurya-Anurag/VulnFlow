@@ -4,16 +4,19 @@ import {
   decideApproval,
   importReport,
   loadDashboard,
+  loadReviewBrief,
   transitionFinding,
 } from "./api";
 import { VulnFlowShell } from "./components/VulnFlowShell";
-import type { DashboardData, FindingStatus } from "./types";
+import type { DashboardData, FindingStatus, ReviewBrief } from "./types";
 import "./styles.css";
 
 export function App() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reviewBrief, setReviewBrief] = useState<ReviewBrief | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -28,6 +31,19 @@ export function App() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+
+  const handleAnalyze = useCallback(async (findingId: string) => {
+    setAnalysisLoading(true);
+    setReviewBrief(null);
+    try {
+      setReviewBrief(await loadReviewBrief(findingId));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to prepare the review brief.");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, []);
 
   const handleImport = useCallback(async (file: File) => {
     try {
@@ -82,7 +98,10 @@ export function App() {
       error={error}
       onRefresh={refresh}
       onImportFile={handleImport}
-      onSelectFinding={() => undefined}
+      onSelectFinding={() => setReviewBrief(null)}
+      onAnalyzeFinding={handleAnalyze}
+      reviewBrief={reviewBrief}
+      analysisLoading={analysisLoading}
       onTransition={handleTransition}
       onCreateApproval={handleCreateApproval}
       onDecideApproval={handleDecision}
