@@ -13,7 +13,8 @@ export function BenchmarkView() {
   async function run() {
     setBusy(true);setError("");setResult(null);
     try {
-      const apiBase=(import.meta.env.VITE_API_BASE??"http://127.0.0.1:8000/api").replace(/\\/$/,"");\n      const response=await fetch(`${apiBase}/benchmarks/run`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task:{id:"security-research-001",category:"security",prompt},repetitions,fault:fault==="none"?null:fault})});
+      const apiBase=(import.meta.env.VITE_API_BASE??"http://127.0.0.1:8000/api").replace(/\/$/,"");
+      const response=await fetch(`${apiBase}/benchmarks/run`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task:{id:"security-research-001",category:"security",prompt},repetitions,fault:fault==="none"?null:fault})});
       const data=await response.json();
       if(!response.ok) throw new Error(data.detail||"Benchmark request failed");
       setResult(data);
