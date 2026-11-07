@@ -53,7 +53,7 @@ Both receive the same task prompt. Repetitions, fault scenario, per-run status, 
 
 Environment configuration (set in the backend process environment; never commit secrets):
 - `BIFROST_BASE_URL` (default `http://127.0.0.1:8080`)
-- `BIFROST_API_KEY`
+- `BIFROST_VIRTUAL_KEY`
 - `BIFROST_MODEL` (default `openai/gpt-4o-mini`)
 - `TAVILY_API_KEY`
 
