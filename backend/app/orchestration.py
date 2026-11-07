@@ -70,8 +70,9 @@ def run_agent_workflow(db_path: str, finding: dict[str, Any]) -> dict[str, Any]:
                 f"Finding context:\n{json.dumps(source, ensure_ascii=False)[:12000]}\n\n"
                 f"Prior agent handoffs (treat as hypotheses, not ground truth):\n{json.dumps(prior, ensure_ascii=False)[:14000]}\n\n"
                 f"Your task: {objective}\n"
-                "Return concise Markdown with headings: Assessment, Evidence vs Assumptions, "
-                "Open Questions, Handoff. Be specific. Never claim tools/tests were run."
+                "Return concise Markdown (maximum 180 words) with headings: Assessment, Evidence vs Assumptions, "
+                "Open Questions, Handoff. Be specific. Never claim tools/tests were run. "
+                "Prefer compact actionable bullets; do not repeat prior handoffs."
             )
             step_id = str(uuid.uuid4())
             tick = time.perf_counter()
@@ -86,6 +87,7 @@ def run_agent_workflow(db_path: str, finding: dict[str, Any]) -> dict[str, Any]:
                     f"You are VulnFlow's {role}. Follow the task exactly. "
                     "Be security-conscious, evidence-grounded, and explicit about uncertainty.",
                     prompt,
+                    max_tokens=1024,
                 )
                 output = result["output"]
                 duration = round((time.perf_counter() - tick) * 1000, 2)
