@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from .audit import list_events
 from .analysis import build_review_brief
 from .benchmarking import run_experiment
+from .orchestration import run_agent_workflow, get_agent_workflow
 from .db import connect, transaction
 from .importers import parse_import, persist_import
 from .models import ApprovalError, ImportValidationError, WorkflowConflict
@@ -356,6 +357,30 @@ def create_benchmark(request: Request, payload: dict[str, Any]) -> dict[str, Any
         return run_experiment(_db_path(request), task, repetitions, fault)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/findings/{finding_id}/agent-workflow")
+def start_agent_workflow(finding_id: str, request: Request) -> dict[str, Any]:
+    """Run sequential specialist agents over imported evidence; analysis only."""
+    finding_id = _valid_id(finding_id)
+    with _connection(request) as conn:
+        row = conn.execute("SELECT * FROM findings WHERE id=?", (finding_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Finding not found")
+        finding = _finding(conn, row)
+    try:
+        return run_agent_workflow(_db_path(request), finding)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from None
+
+
+@router.get("/agent-workflows/{run_id}")
+def agent_workflow_detail(run_id: str, request: Request) -> dict[str, Any]:
+    run_id = _valid_id(run_id)
+    result = get_agent_workflow(_db_path(request), run_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Agent workflow not found")
+    return result
 
 
 @router.get("/benchmarks/{experiment_id}")
