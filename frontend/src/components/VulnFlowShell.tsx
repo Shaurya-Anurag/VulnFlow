@@ -304,7 +304,7 @@ export function VulnFlowShell({
               <section className="vf-subsection vf-card">
                 <SectionHeading eyebrow="Guided workflow" title="Investigate → request human review" />
                 <p className="vf-muted-copy">One action runs the existing evidence-brief endpoint, records the Investigating transition, and creates a remediation approval request. This does not generate or apply a patch, and the approval remains a human decision.</p>
-                <button type="button" className="vf-button vf-button--primary" disabled={workflowBusy} onClick={() => void runReviewWorkflow(selected)}>{workflowBusy ? "Recording workflow…" : "Run review workflow"}</button>
+                <button type="button" className="vf-button vf-button--primary" disabled={workflowBusy || relatedApprovals.some((approval) => approval.action === "propose_remediation" && approval.status === "pending")} onClick={() => void runReviewWorkflow(selected)}>{workflowBusy ? "Recording workflow…" : relatedApprovals.some((approval) => approval.action === "propose_remediation" && approval.status === "pending") ? "Review request already pending" : "Run review workflow"}</button>
                 {workflowNotice && <p className="vf-empty-inline" role="status">{workflowNotice}</p>}
               </section>
               <div className="vf-note"><strong>Severity reasoning</strong><p>Not recorded by the imported report or current API.</p></div>
