@@ -45,7 +45,7 @@ class BifrostClient:
         self.key = os.getenv("BIFROST_VIRTUAL_KEY", os.getenv("BIFROST_API_KEY", ""))
         self.model = os.getenv("BIFROST_MODEL", "ollama/qwen3:4b")
 
-    def complete(self, system: str, user: str, fault: str | None = None) -> dict[str, Any]:
+    def complete(self, system: str, user: str, fault: str | None = None, max_tokens: int = 512) -> dict[str, Any]:
         if fault == "model_unavailable":
             raise RuntimeError("Injected fault: model unavailable")
         if not self.key:
@@ -53,7 +53,7 @@ class BifrostClient:
         headers = {"x-bf-vk": self.key}
         data, latency = _post_json(
             f"{self.base}/v1/chat/completions",
-            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 512, "think": False, "reasoning_effort": "none"},
+            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": max(128, min(int(max_tokens), 2048)), "think": False, "reasoning_effort": "none"},
             headers,
         )
         choice = (data.get("choices") or [{}])[0]
