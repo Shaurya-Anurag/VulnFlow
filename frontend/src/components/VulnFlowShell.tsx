@@ -5,6 +5,7 @@ import type {
   DashboardSummary,
   Finding,
   FindingStatus,
+  ReviewBrief,
 } from "../types";
 import "./VulnFlowShell.css";
 
@@ -18,6 +19,9 @@ export interface VulnFlowShellProps {
   onRefresh: () => void | Promise<void>;
   onImportFile: (file: File) => void | Promise<void>;
   onSelectFinding: (id: string) => void;
+  onAnalyzeFinding: (id: string) => void;
+  reviewBrief: ReviewBrief | null;
+  analysisLoading: boolean;
   onTransition: (findingId: string, status: FindingStatus, reason: string) => void | Promise<void>;
   onCreateApproval: (findingId: string, action: string) => void | Promise<void>;
   onDecideApproval: (approvalId: string, decision: "approved" | "rejected", reason: string) => void | Promise<void>;
@@ -142,6 +146,9 @@ export function VulnFlowShell({
   onRefresh,
   onImportFile,
   onSelectFinding,
+  onAnalyzeFinding,
+  reviewBrief,
+  analysisLoading,
   onTransition,
   onCreateApproval,
   onDecideApproval,
@@ -264,6 +271,18 @@ export function VulnFlowShell({
             {selected ? <>
               <div className="vf-detail-heading"><div><p className="vf-eyebrow">Finding investigation</p><h2>{selected.title}</h2></div><FindingBadge finding={selected} /></div>
               <div className="vf-detail-grid"><Info label="Rule" value={selected.rule_id || "Not recorded"} /><Info label="Resource" value={selected.resource || "Not recorded"} /><Info label="Created" value={dateLabel(selected.created_at)} /><Info label="Updated" value={dateLabel(selected.updated_at)} /><Info label="Dedup fingerprint" value={selected.fingerprint || "Not recorded"} /></div>
+              <section className="vf-subsection vf-analysis-panel">
+                <div className="vf-section-heading"><div><p className="vf-eyebrow">Evidence-grounded review</p><h2>Investigation brief</h2></div><button type="button" className="vf-button vf-button--primary" disabled={analysisLoading} onClick={() => onAnalyzeFinding(selected.id)}>{analysisLoading ? "Preparing..." : "Generate review brief"}</button></div>
+                {reviewBrief?.finding_id === selected.id ? <>
+                  <p className="vf-analysis-summary">{reviewBrief.summary}</p>
+                  <div className="vf-detail-grid"><Info label="Review status" value={reviewBrief.review_status} /><Info label="Verification" value={reviewBrief.verification_claim} /><Info label="Observations" value={reviewBrief.observations} /><Info label="Source reports" value={reviewBrief.source_count} /></div>
+                  <div className="vf-analysis-columns">
+                    <div><strong>Evidence gaps</strong>{reviewBrief.gaps.length ? <ul>{reviewBrief.gaps.map((gap) => <li key={gap}>{gap}</li>)}</ul> : <p>No obvious metadata gaps detected.</p>}</div>
+                    <div><strong>Recommended checks</strong><ul>{reviewBrief.recommended_checks.map((check) => <li key={check}>{check}</li>)}</ul></div>
+                  </div>
+                  <p className="vf-analysis-limit">{reviewBrief.limitations.join(" ")}</p>
+                </> : <p className="vf-empty-inline">Generate a deterministic brief from the imported observations, locations and evidence. No target is contacted and no vulnerability is independently verified.</p>}
+              </section>
               <div className="vf-note"><strong>Severity reasoning</strong><p>Not recorded by the imported report or current API.</p></div>
               <div className="vf-note"><strong>Agent assessments and disagreements</strong><p>Not recorded. This workspace does not synthesize reviewer opinions.</p></div>
               <section className="vf-subsection"><SectionHeading title="Recorded evidence" />
