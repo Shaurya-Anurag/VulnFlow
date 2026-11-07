@@ -53,7 +53,7 @@ class BifrostClient:
         headers = {"x-bf-vk": self.key}
         data, latency = _post_json(
             f"{self.base}/v1/chat/completions",
-            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 512, "think": false, "reasoning_effort": "none"},
+            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 512, "think": False, "reasoning_effort": "none"},
             headers,
         )
         choice = (data.get("choices") or [{}])[0]
