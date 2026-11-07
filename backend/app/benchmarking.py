@@ -22,7 +22,7 @@ from typing import Any
 def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
-def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float = 45) -> tuple[dict[str, Any], float]:
+def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float = 180) -> tuple[dict[str, Any], float]:
     body = json.dumps(payload).encode()
     request = urllib.request.Request(url, data=body, headers={**headers, "Content-Type": "application/json"}, method="POST")
     started = time.perf_counter()
@@ -53,7 +53,7 @@ class BifrostClient:
         headers = {"x-bf-vk": self.key}
         data, latency = _post_json(
             f"{self.base}/v1/chat/completions",
-            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]},
+            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 512},
             headers,
         )
         choice = (data.get("choices") or [{}])[0]
@@ -176,7 +176,8 @@ def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fau
                  json.dumps(result.get("trace", [])), json.dumps(result.get("sources", [])), utcnow()))
             conn.commit()
     rows = [dict(x) for x in conn.execute("SELECT * FROM benchmark_runs WHERE experiment_id=? ORDER BY repetition,agent", (experiment_id,))]
-    conn.execute("UPDATE benchmark_experiments SET status='completed' WHERE id=?", (experiment_id,))
+    final_status = "completed" if all(x["status"] == "completed" for x in rows) else ("partial" if any(x["status"] == "completed" for x in rows) else "failed")
+    conn.execute("UPDATE benchmark_experiments SET status=? WHERE id=?", (final_status, experiment_id))
     conn.commit()
     conn.close()
     summaries = []
@@ -189,5 +190,5 @@ def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fau
             "avg_tokens": round(sum(x["prompt_tokens"] + x["completion_tokens"] for x in group) / len(group), 2),
             "avg_tool_calls": round(sum(x["tool_calls"] for x in group) / len(group), 2),
         })
-    return {"experiment_id": experiment_id, "status": "completed", "task": task, "fault": fault,
+    return {"experiment_id": experiment_id, "status": final_status, "task": task, "fault": fault,
             "repetitions": repetitions, "agents": summaries, "runs": rows}
