@@ -11,6 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request
 
 from .audit import list_events
+from .analysis import build_review_brief
 from .db import connect, transaction
 from .importers import parse_import, persist_import
 from .models import ApprovalError, ImportValidationError, WorkflowConflict
@@ -313,3 +314,28 @@ def record_agent_activity(request: Request, payload: dict[str, Any]) -> dict[str
             event = append_event(conn, actor, f"agent_activity:{action}", "activity", target,
                                  {"outcome": outcome[:128], "details": details})
     return {"id": str(event.id), "status": "recorded"}
+
+@router.get("/findings/{finding_id}/analysis")
+def finding_analysis(finding_id: str, request: Request) -> dict[str, Any]:
+    """Return a deterministic review brief grounded only in imported records."""
+    finding_id = _valid_id(finding_id)
+    with _connection(request) as conn:
+        row = conn.execute("SELECT * FROM findings WHERE id=?", (finding_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Finding not found")
+        observations = conn.execute(
+            """SELECT o.id,o.tool_name,o.tool_version,o.rule_id,o.normalized_location,
+                      i.source_sha256
+               FROM observations o JOIN imports i ON i.id=o.import_id
+               WHERE o.finding_id=? ORDER BY i.imported_at DESC,o.result_index""",
+            (finding_id,),
+        ).fetchall()
+        evidence = conn.execute(
+            """SELECT e.kind,e.locator,e.excerpt,e.content_sha256
+               FROM evidence e JOIN observations o ON o.id=e.observation_id
+               WHERE o.finding_id=? ORDER BY e.created_at,e.id""",
+            (finding_id,),
+        ).fetchall()
+        return build_review_brief(dict(row), [dict(item) for item in observations],
+                                  [dict(item) for item in evidence])
+
