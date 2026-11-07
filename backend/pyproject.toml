@@ -1,0 +1,12 @@
+[project]
+name = "vulnflow"
+version = "0.1.0"
+description = "Local-first vulnerability finding review workspace"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.142,<1",
+  "uvicorn>=0.54,<1",
+]
+
+[tool.unittest]
+start-directory = "../tests/backend"

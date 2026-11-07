@@ -1,0 +1,91 @@
+import { useCallback, useEffect, useState } from "react";
+import {
+  createApproval,
+  decideApproval,
+  importReport,
+  loadDashboard,
+  transitionFinding,
+} from "./api";
+import { VulnFlowShell } from "./components/VulnFlowShell";
+import type { DashboardData, FindingStatus } from "./types";
+import "./styles.css";
+
+export function App() {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      setData(await loadDashboard());
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to load VulnFlow.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const handleImport = useCallback(async (file: File) => {
+    try {
+      if (file.size > 2 * 1024 * 1024) throw new Error("Choose a report smaller than 2 MiB.");
+      const document: unknown = JSON.parse(await file.text());
+      const format = file.name.toLowerCase().endsWith(".sarif") || file.name.toLowerCase().endsWith(".sarif.json")
+        ? "sarif"
+        : "json";
+      await importReport(format, file.name, document);
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The report could not be imported.");
+    }
+  }, [refresh]);
+
+  const handleTransition = useCallback(async (id: string, status: FindingStatus, reason: string) => {
+    try {
+      const finding = data?.findings.find((item) => item.id === id);
+      if (!finding) return;
+      await transitionFinding(id, status, reason, finding.version);
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The lifecycle update failed.");
+    }
+  }, [data, refresh]);
+
+  const handleCreateApproval = useCallback(async (id: string, action: string) => {
+    try {
+      await createApproval(id, action);
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The approval request failed.");
+    }
+  }, [refresh]);
+
+  const handleDecision = useCallback(async (id: string, decision: "approved" | "rejected", reason: string) => {
+    try {
+      await decideApproval(id, decision, reason);
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The approval decision failed.");
+    }
+  }, [refresh]);
+
+  return (
+    <VulnFlowShell
+      summary={data?.summary ?? null}
+      findings={data?.findings ?? []}
+      activities={data?.activities ?? []}
+      approvals={data?.approvals ?? []}
+      loading={loading}
+      error={error}
+      onRefresh={refresh}
+      onImportFile={handleImport}
+      onSelectFinding={() => undefined}
+      onTransition={handleTransition}
+      onCreateApproval={handleCreateApproval}
+      onDecideApproval={handleDecision}
+    />
+  );
+}
