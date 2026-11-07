@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
-type Run = { id:string; agent:string; repetition:number; status:string; output:string; error:string; model:string; duration_ms:number; prompt_tokens:number; completion_tokens:number; tool_calls:number; steps:number; trace_json:string; sources_json:string };
-type Result = { experiment_id:string; status:string; repetitions:number; fault:string|null; agents:{agent:string;runs:number;success_rate:number;avg_duration_ms:number;avg_tokens:number;avg_tool_calls:number}[]; runs:Run[] };
+type Evaluation = { type:string; category:string; score:number|null; label:string; passed:number; total:number; criteria:{name:string;passed:boolean}[]; disclaimer:string };
+type Run = { evaluation:Evaluation|null; id:string; agent:string; repetition:number; status:string; output:string; error:string; model:string; duration_ms:number; prompt_tokens:number; completion_tokens:number; tool_calls:number; steps:number; trace_json:string; sources_json:string };
+type Result = { experiment_id:string; status:string; repetitions:number; fault:string|null; agents:{agent:string;runs:number;success_rate:number;avg_duration_ms:number;avg_tokens:number;avg_tool_calls:number;avg_heuristic_score:number|null}[]; runs:Run[] };
 
 export function BenchmarkView() {
   const [prompt,setPrompt]=useState("Explain SQL injection, demonstrate a safe illustrative example of how it occurs, and provide three practical prevention methods. Prioritize technically accurate security guidance.");
@@ -33,10 +34,10 @@ export function BenchmarkView() {
     {error&&<div className="vf-alert"><strong>Execution failed</strong><span>{error}</span></div>}
     {result&&<>
       <section className="vf-card"><div className="vf-section-heading"><div><p className="vf-eyebrow">Experiment {result.experiment_id}</p><h2>Comparative results</h2></div><span className="vf-soft-tag">{result.repetitions} repetitions · {result.fault||"normal conditions"}</span></div>
-        <div className="vf-metric-grid">{result.agents.map(a=><article className="vf-metric" key={a.agent}><span>{a.agent}</span><strong>{Math.round(a.success_rate*100)}%</strong><small>Success rate · avg {a.avg_duration_ms} ms · {a.avg_tokens} tokens · {a.avg_tool_calls} tool calls</small></article>)}</div>
+        <div className="vf-metric-grid">{result.agents.map(a=><article className="vf-metric" key={a.agent}><span>{a.agent}</span><strong>{Math.round(a.success_rate*100)}%</strong><small>Execution success · avg {a.avg_duration_ms} ms · {a.avg_tokens} tokens · {a.avg_tool_calls} tool calls · quality signals {a.avg_heuristic_score==null?"not scored":`${a.avg_heuristic_score}%`}</small></article>)}</div>
       </section>
       <section className="vf-card"><div className="vf-section-heading"><div><p className="vf-eyebrow">Inspectable execution</p><h2>Run-by-run traces</h2></div></div>
-      {result.runs.map(r=><details className="vf-benchmark-run" key={r.id}><summary><strong>{r.agent}</strong> · Trial {r.repetition} · {r.status} · {r.model||"model not recorded"} · {r.duration_ms} ms · {r.prompt_tokens+r.completion_tokens} tokens</summary>{r.error&&<p className="vf-alert">{r.error}</p>}<pre>{r.output||"No output returned."}</pre><h4>Trace</h4><pre>{JSON.stringify(JSON.parse(r.trace_json||"[]"),null,2)}</pre>{r.sources_json!=="[]"&&<><h4>Sources</h4><pre>{JSON.stringify(JSON.parse(r.sources_json),null,2)}</pre></>}</details>)}
+      {result.runs.map(r=><details className="vf-benchmark-run" key={r.id}><summary><strong>{r.agent}</strong> · Trial {r.repetition} · {r.status} · {r.model||"model not recorded"} · {r.duration_ms} ms · {r.prompt_tokens+r.completion_tokens} tokens</summary>{r.error&&<p className="vf-alert">{r.error}</p>}{r.evaluation&&<div style={{margin:"12px 0",padding:12,border:"1px solid var(--vf-border, #493b46)",borderRadius:8}}><strong>Heuristic quality: {r.evaluation.score==null?"Not scored":`${r.evaluation.score}% · ${r.evaluation.label}`}</strong>{r.evaluation.criteria.length>0&&<ul style={{margin:"8px 0",paddingLeft:20}}>{r.evaluation.criteria.map((item,i)=><li key={i} style={{fontSize:12,margin:"4px 0",color:item.passed?"#8dc9a3":"#d6a0a0"}}>{item.passed?"✓":"○"} {item.name}</li>)}</ul>}<small style={{opacity:.65}}>{r.evaluation.disclaimer}</small></div>}<pre>{r.output||"No output returned."}</pre><h4>Trace</h4><pre>{JSON.stringify(JSON.parse(r.trace_json||"[]"),null,2)}</pre>{r.sources_json!=="[]"&&<><h4>Sources</h4><pre>{JSON.stringify(JSON.parse(r.sources_json),null,2)}</pre></>}</details>)}
       </section>
     </>}
   </div>;
