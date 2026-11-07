@@ -100,6 +100,8 @@ class TavilyResearchAgent(AgentAdapter):
     def __init__(self, llm: BifrostClient, search: TavilyClient) -> None:
         self.llm, self.search = llm, search
     def execute(self, task: dict[str, Any], fault: str | None = None) -> dict[str, Any]:
+        if fault == "model_unavailable":
+            raise RuntimeError("Injected fault: model unavailable")
         search = self.search.search(task["prompt"], fault)
         sources = [{"title": x.get("title", ""), "url": x.get("url", ""), "content": str(x.get("content", ""))[:3000]} for x in search["results"]]
         result = self.llm.complete(
