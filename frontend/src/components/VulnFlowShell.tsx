@@ -8,6 +8,7 @@ import type {
   ReviewBrief,
 } from "../types";
 import "./VulnFlowShell.css";
+import { BenchmarkView } from "./BenchmarkView";
 
 export interface VulnFlowShellProps {
   summary: DashboardSummary | null;
@@ -27,7 +28,7 @@ export interface VulnFlowShellProps {
   onDecideApproval: (approvalId: string, decision: "approved" | "rejected", reason: string) => void | Promise<void>;
 }
 
-type View = "overview" | "findings" | "investigations" | "remediation" | "approvals" | "agents" | "audit";
+type View = "overview" | "findings" | "investigations" | "remediation" | "approvals" | "agents" | "audit" | "benchmarks";
 
 const NAV: { id: View; label: string; mark: string }[] = [
   { id: "overview", label: "Overview", mark: "OV" },
@@ -36,6 +37,7 @@ const NAV: { id: View; label: string; mark: string }[] = [
   { id: "remediation", label: "Remediation", mark: "RM" },
   { id: "approvals", label: "Approvals", mark: "AP" },
   { id: "agents", label: "Agent Network", mark: "AG" },
+  { id: "benchmarks", label: "Benchmarks", mark: "BM" },
   { id: "audit", label: "Audit", mark: "AU" },
 ];
 
@@ -63,6 +65,7 @@ const PAGE_META: Record<View, { eyebrow: string; title: string; description: str
   approvals: { eyebrow: "Human review", title: "Approvals", description: "Review action proposals and record a decision." },
   agents: { eyebrow: "Activity", title: "Agent Network", description: "Persisted agent activity only; live Switch presence is not connected." },
   audit: { eyebrow: "History", title: "Audit", description: "Application events recorded in the local database." },
+  benchmarks: { eyebrow: "Agent evaluation", title: "Benchmarks", description: "Run repeatable, inspectable agent comparisons under normal and degraded conditions." },
 };
 
 function dateLabel(value?: string): string {
@@ -302,6 +305,8 @@ export function VulnFlowShell({
             </> : <div className="vf-empty-panel"><h3>No finding selected</h3><p>Import a report to begin an evidence review.</p></div>}
           </section>
         </div>}
+
+        {view === "benchmarks" && <BenchmarkView />}
 
         {view === "remediation" && <>
           <section className="vf-card"><SectionHeading eyebrow="Planned work" title="Remediation queue" />
