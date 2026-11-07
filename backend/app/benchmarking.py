@@ -53,13 +53,18 @@ class BifrostClient:
         headers = {"x-bf-vk": self.key}
         data, latency = _post_json(
             f"{self.base}/v1/chat/completions",
-            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 512, "reasoning_effort": "none"},
+            {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 512, "think": false, "reasoning_effort": "none"},
             headers,
         )
         choice = (data.get("choices") or [{}])[0]
         message = choice.get("message") or {}
         usage = data.get("usage") or {}
         output = str(message.get("content") or "").strip()
+        import re
+        output = re.sub(r"<think>.*?</think>", "", output, flags=re.DOTALL | re.IGNORECASE).strip()
+        finish_reason = str(choice.get("finish_reason") or "")
+        if finish_reason == "length":
+            raise RuntimeError("Model completion hit the token limit; answer may be truncated")
         if not output:
             raise RuntimeError("Model returned no final answer; refusing to count an empty completion as success")
         return {
@@ -69,6 +74,7 @@ class BifrostClient:
             "completion_tokens": int(usage.get("completion_tokens") or 0),
             "latency_ms": round(latency, 2),
             "request_id": data.get("id", ""),
+            "finish_reason": finish_reason,
         }
 
 class TavilyClient:
