@@ -158,3 +158,15 @@ body{margin:0;background:#171719}
  .vf-shell .vf-investigation-grid>.vf-card:first-child{position:static;max-height:none}
  .vf-shell .vf-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+
+/* Investigation brief */
+.vf-shell .vf-analysis-panel{border:1px solid rgba(213,166,111,.28);border-radius:8px;padding:17px;background:linear-gradient(135deg,rgba(101,45,70,.13),rgba(34,34,37,.72))}
+.vf-shell .vf-analysis-summary{padding:13px 14px;border-left:2px solid #d5a66f;background:rgba(20,19,22,.42);color:#e4d9d1;font-size:11px;line-height:1.7}
+.vf-shell .vf-analysis-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.vf-shell .vf-analysis-columns>div{padding:13px;border:1px solid #403a40;border-radius:7px;background:#211f23}
+.vf-shell .vf-analysis-columns strong{font:600 10px Manrope,sans-serif;color:#e8c49d}
+.vf-shell .vf-analysis-columns ul{display:grid;gap:8px;padding-left:17px;color:#c4b9b9;font-size:9px;line-height:1.6}
+.vf-shell .vf-analysis-columns p,.vf-shell .vf-analysis-limit{color:#a79da1;font-size:9px;line-height:1.6}
+.vf-shell .vf-analysis-limit{margin:12px 0 0;padding-top:10px;border-top:1px solid #403a40}
+@media(max-width:760px){.vf-shell .vf-analysis-columns{grid-template-columns:1fr}}
