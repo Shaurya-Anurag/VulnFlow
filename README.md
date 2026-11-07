@@ -39,3 +39,27 @@ The dashboard limits selected files to 2 MiB; the API/parser enforces a 10 MiB r
 ## Local safety limits
 
 The MVP binds to loopback and restricts browser origins to the local UI. Do not expose it on a LAN or use it as a multi-user service. Keep evidence size and retention in mind: scanner reports can contain sensitive paths, snippets, or personal data. Back up the database before moving or deleting it.
+
+
+## Agent benchmarking (Problem 02)
+
+VulnFlow now includes an initial framework-neutral research benchmark runner with two adapters:
+- `direct-bifrost`: direct model response through Bifrost.
+- `tavily-assisted-bifrost`: Tavily retrieval followed by Bifrost synthesis.
+
+Both receive the same task prompt. Repetitions, fault scenario, per-run status, output, steps, tool calls, token usage, latency, sources and step traces are stored in the existing local SQLite database in dedicated benchmark tables. API routes:
+- `POST /api/benchmarks/run` with `{"task":{"id":"research-001","prompt":"..."}, "repetitions":2, "fault":null}`
+- `GET /api/benchmarks/{experiment_id}`
+
+Environment configuration (set in the backend process environment; never commit secrets):
+- `BIFROST_BASE_URL` (default `http://127.0.0.1:8080`)
+- `BIFROST_API_KEY`
+- `BIFROST_MODEL` (default `openai/gpt-4o-mini`)
+- `TAVILY_API_KEY`
+
+Supported controlled failures: `model_unavailable` and `tool_unavailable`. These are deterministic injected failures, not real provider outages. This first iteration records provider token usage where returned; monetary cost, richer retry/failover semantics, misleading-instruction suites, Docker isolation, and production-grade run cancellation remain future work. Do not claim these are implemented until added and tested.
+
+Run backend tests from repository root:
+```powershell
+python -m unittest discover -s tests/backend -v
+```
