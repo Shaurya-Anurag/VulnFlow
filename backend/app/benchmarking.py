@@ -149,6 +149,71 @@ def _init_tables(conn: sqlite3.Connection) -> None:
     CREATE INDEX IF NOT EXISTS idx_benchmark_runs_experiment ON benchmark_runs(experiment_id);
     """)
 
+# Lightweight, transparent rubric checks. These are lexical signals, not semantic proof.
+_RUBRICS: dict[str, list[tuple[str, tuple[str, ...]]]] = {
+    "sql_injection": [
+        ("Explains attacker-controlled input changing SQL structure", ("attacker-controlled", "user input", "sql syntax", "query structure", "injected")),
+        ("Recommends parameterized queries / prepared statements", ("parameterized quer", "prepared statement", "placeholders")),
+        ("Separately binds values rather than interpolating SQL", ("bind parameter", "bound parameter", "separate parameter", "not concatenate", "not interpolate")),
+        ("Includes least-privilege database access", ("least privilege", "least-privileged", "limited privileges")),
+        ("Treats validation/escaping as defense-in-depth, not the primary fix", ("defense in depth", "defence in depth", "not a substitute", "not replace parameterized")),
+    ],
+    "xss": [
+        ("Explains script execution in a victim's browser", ("victim's browser", "victim browser", "browser executes", "javascript executes")),
+        ("Recommends context-aware output encoding", ("output encod", "contextual encod", "html encod")),
+        ("Recommends safe DOM APIs / avoiding unsafe HTML insertion", ("textcontent", "text content", "avoid innerhtml", "safe dom")),
+        ("Treats Content Security Policy as defense-in-depth", ("content security policy", "csp")),
+        ("Mentions cookie protections where relevant", ("httponly", "sameSite", "same-site")),
+    ],
+    "idor": [
+        ("Explains missing object-level authorization", ("object-level authorization", "object level authorization", "authorization check", "access control")),
+        ("Requires server-side authorization on every request", ("server-side", "every request", "each request")),
+        ("Does not rely on unpredictable IDs alone", ("unpredictable id", "unguessable id", "not sufficient")),
+        ("Recommends deny-by-default / least privilege", ("deny by default", "least privilege")),
+        ("Tests cross-user access", ("cross-user", "other user", "different user")),
+    ],
+    "ssrf": [
+        ("Explains server-side requests to attacker-controlled destinations", ("server-side request", "attacker-controlled url", "user-controlled url")),
+        ("Recommends strict destination allowlists", ("allowlist", "allow-list", "allow list")),
+        ("Blocks private, loopback, and link-local destinations", ("loopback", "private ip", "link-local", "metadata endpoint")),
+        ("Revalidates redirects and DNS resolution", ("redirect", "dns rebinding", "dns resolution")),
+        ("Recommends outbound network / egress controls", ("egress", "outbound network")),
+    ],
+    "insecure_deserialization": [
+        ("Identifies risk from untrusted serialized data", ("untrusted serialized", "untrusted data", "deserializ")),
+        ("Avoids unsafe native object deserialization", ("unsafe deserial", "native deserial", "avoid pickle", "avoid object deserial")),
+        ("Recommends safe formats and schema validation", ("json", "schema validation", "validate schema")),
+        ("Notes integrity signatures do not make unsafe parsing safe", ("signature", "does not make", "parser")),
+        ("Recommends least privilege / isolation", ("least privilege", "sandbox", "isolation")),
+    ],
+}
+def evaluate_answer(task: dict[str, Any], output: str) -> dict[str, Any]:
+    prompt = str(task.get("prompt", "")).lower()
+    if any(x in prompt for x in ("sql injection", "sqli")):
+        category = "sql_injection"
+    elif "xss" in prompt or "cross-site scripting" in prompt:
+        category = "xss"
+    elif "idor" in prompt or "insecure direct object" in prompt:
+        category = "idor"
+    elif "ssrf" in prompt or "server-side request forgery" in prompt:
+        category = "ssrf"
+    elif "deserializ" in prompt:
+        category = "insecure_deserialization"
+    else:
+        return {"type": "heuristic", "category": "general", "score": None,
+                "label": "No rubric", "passed": 0, "total": 0, "criteria": [],
+                "disclaimer": "No task-specific rubric is configured; execution success is not answer correctness."}
+    text = output.lower()
+    criteria = [{"name": name, "passed": any(term in text for term in terms)}
+                for name, terms in _RUBRICS[category]]
+    passed = sum(item["passed"] for item in criteria)
+    total = len(criteria)
+    score = round(passed / total * 100)
+    return {"type": "heuristic", "category": category, "score": score,
+            "label": "Strong signals" if score >= 80 else ("Partial signals" if score >= 40 else "Weak signals"),
+            "passed": passed, "total": total, "criteria": criteria,
+            "disclaimer": "Keyword-based screening only; it does not establish technical correctness or replace expert review."}
+
 def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fault: str | None = None) -> dict[str, Any]:
     if not isinstance(task.get("prompt"), str) or not task["prompt"].strip():
         raise ValueError("task.prompt is required")
@@ -185,6 +250,8 @@ def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fau
                  json.dumps(result.get("trace", [])), json.dumps(result.get("sources", [])), utcnow()))
             conn.commit()
     rows = [dict(x) for x in conn.execute("SELECT * FROM benchmark_runs WHERE experiment_id=? ORDER BY repetition,agent", (experiment_id,))]
+    for row in rows:
+        row["evaluation"] = evaluate_answer(task, row["output"]) if row["status"] == "completed" else None
     final_status = "completed" if all(x["status"] == "completed" for x in rows) else ("partial" if any(x["status"] == "completed" for x in rows) else "failed")
     conn.execute("UPDATE benchmark_experiments SET status=? WHERE id=?", (final_status, experiment_id))
     conn.commit()
@@ -198,6 +265,7 @@ def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fau
             "avg_duration_ms": round(sum(x["duration_ms"] for x in group) / len(group), 2),
             "avg_tokens": round(sum(x["prompt_tokens"] + x["completion_tokens"] for x in group) / len(group), 2),
             "avg_tool_calls": round(sum(x["tool_calls"] for x in group) / len(group), 2),
+            "avg_heuristic_score": (round(sum(x["evaluation"]["score"] for x in group if x.get("evaluation") and x["evaluation"]["score"] is not None) / max(1, sum(1 for x in group if x.get("evaluation") and x["evaluation"]["score"] is not None)), 1) if any(x.get("evaluation") and x["evaluation"]["score"] is not None for x in group) else None),
         })
     return {"experiment_id": experiment_id, "status": final_status, "task": task, "fault": fault,
             "repetitions": repetitions, "agents": summaries, "runs": rows}
