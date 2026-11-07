@@ -71,3 +71,10 @@ export function decideApproval(approvalId: string, decision: "approved" | "rejec
 export function loadReviewBrief(findingId: string) {
   return request<ReviewBrief>(`/findings/${encodeURIComponent(findingId)}/analysis`);
 }
+
+
+export interface AgentWorkflowResult { run_id: string; finding_id: string; status: string; agents: { agent: string; role: string; output: string; duration_ms: number }[]; final_review: string; execution_policy: string; }
+
+export function runAgentWorkflow(findingId: string) {
+  return request<AgentWorkflowResult>(`/findings/${encodeURIComponent(findingId)}/agent-workflow`, { method: "POST" });
+}
