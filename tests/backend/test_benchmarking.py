@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.app.benchmarking import run_experiment
+from backend.app.benchmarking import evaluate_answer, run_experiment
 
 
 class BenchmarkContractTests(unittest.TestCase):
@@ -32,6 +32,20 @@ class BenchmarkContractTests(unittest.TestCase):
             self.assertEqual(statuses["tavily-assisted-bifrost"], "failed")
             self.assertIn("tool unavailable", next(x["error"] for x in result["runs"]
                                                   if x["agent"] == "tavily-assisted-bifrost"))
+
+    def test_sql_injection_rubric_reports_transparent_heuristic_criteria(self):
+        evaluation = evaluate_answer(
+            {"prompt": "Explain SQL injection and prevention"},
+            "Attacker-controlled input changes SQL syntax. Use parameterized queries with placeholders and bind parameters separately. Apply least privilege. Validation is defense in depth, not a substitute."
+        )
+        self.assertEqual(evaluation["category"], "sql_injection")
+        self.assertEqual(evaluation["score"], 100)
+        self.assertEqual(evaluation["type"], "heuristic")
+
+    def test_unknown_task_is_not_given_a_fake_quality_score(self):
+        evaluation = evaluate_answer({"prompt": "Explain a generic topic"}, "A response.")
+        self.assertIsNone(evaluation["score"])
+        self.assertEqual(evaluation["label"], "No rubric")
 
     def test_fault_names_are_allowlisted(self):
         with tempfile.TemporaryDirectory() as folder:
