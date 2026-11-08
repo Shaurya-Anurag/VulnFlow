@@ -7,7 +7,7 @@ import type {
   ReviewBrief,
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000/api";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8010/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -77,4 +77,65 @@ export interface AgentWorkflowResult { run_id: string; finding_id: string; statu
 
 export function runAgentWorkflow(findingId: string) {
   return request<AgentWorkflowResult>(`/findings/${encodeURIComponent(findingId)}/agent-workflow`, { method: "POST" });
+}
+
+
+export interface BenchmarkEvaluation {
+  type: string;
+  category: string;
+  score: number | null;
+  label: string;
+  passed: number;
+  total: number;
+  criteria: { name: string; passed: boolean }[];
+  disclaimer: string;
+}
+
+export interface BenchmarkRun {
+  evaluation: BenchmarkEvaluation | null;
+  id: string;
+  agent: string;
+  repetition: number;
+  status: string;
+  output: string;
+  error: string;
+  model: string;
+  duration_ms: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  tool_calls: number;
+  steps: number;
+  trace_json: string;
+  sources_json: string;
+}
+
+export interface BenchmarkResult {
+  experiment_id: string;
+  status: string;
+  task: Record<string, unknown>;
+  fault: string | null;
+  repetitions: number;
+  agents: {
+    agent: string;
+    runs: number;
+    success_rate: number;
+    avg_duration_ms: number;
+    avg_tokens: number;
+    avg_tool_calls: number;
+    avg_heuristic_score: number | null;
+  }[];
+  runs: BenchmarkRun[];
+}
+
+export type BenchmarkFault = "model_unavailable" | "tool_unavailable" | null;
+
+export function runBenchmark(
+  task: { id: string; category: string; prompt: string },
+  repetitions: number,
+  fault: BenchmarkFault,
+) {
+  return request<BenchmarkResult>("/benchmarks/run", {
+    method: "POST",
+    body: JSON.stringify({ task, repetitions, fault }),
+  });
 }
