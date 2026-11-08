@@ -66,8 +66,8 @@ class BenchmarkContractTests(unittest.TestCase):
             name = "fault-aware-agent"
 
             def execute(self, task, fault=None):
-                if fault == "misleading_instruction":
-                    raise RuntimeError("Injected misleading instruction scenario")
+                if fault == "tool_unavailable":
+                    raise RuntimeError("Injected tool unavailable scenario")
                 return {"output": "ok", "steps": 1}
 
         from backend.app.benchmarking import AgentRegistry
@@ -78,10 +78,10 @@ class BenchmarkContractTests(unittest.TestCase):
             result = run_experiment(
                 str(Path(folder) / "bench.sqlite3"),
                 {"prompt": "test task"}, repetitions=1,
-                fault="misleading_instruction", registry=registry,
+                fault="tool_unavailable", registry=registry,
             )
         self.assertEqual(result["runs"][0]["status"], "failed")
-        self.assertIn("misleading instruction", result["runs"][0]["error"])
+        self.assertIn("tool unavailable", result["runs"][0]["error"])
 
     def test_sql_injection_rubric_reports_transparent_heuristic_criteria(self):
         evaluation = evaluate_answer(
