@@ -339,7 +339,7 @@ class AgentOrchestrationTests(DatabaseTestCase):
         calls = []
 
         class FakeBifrost:
-            def complete(self, system, user, fault=None):
+            def complete(self, system, user, fault=None, max_tokens=512):
                 calls.append(user)
                 return {"output": outputs[len(calls) - 1], "model": "test/fake"}
 
