@@ -404,7 +404,7 @@ def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fau
             cost = calculate_model_cost(
                 str(result.get("model", "")), int(result.get("prompt_tokens", 0)),
                 int(result.get("completion_tokens", 0)), pricing,
-            ) if result.get("model") and usage_available
+            ) if result.get("model") and usage_available else None
             conn.execute("""INSERT INTO benchmark_runs
                 (id,experiment_id,agent,repetition,status,output,error,prompt_tokens,completion_tokens,
                  tool_calls,steps,duration_ms,tool_latency_ms,model,trace_json,sources_json,
