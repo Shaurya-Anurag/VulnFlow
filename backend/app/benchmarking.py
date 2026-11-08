@@ -1,8 +1,9 @@
 """Reproducible research-agent benchmark engine.
 
-Two strategies share one Bifrost model gateway and identical task inputs:
+Three strategies share one Bifrost model gateway and identical task inputs:
 - direct: answer from the task without web research
 - research: retrieve Tavily sources, then synthesize through Bifrost
+- LangGraph: prepare and infer through a real StateGraph
 
 All external calls are explicit, timed, and persisted. No API key is stored in SQLite.
 """
@@ -140,6 +141,7 @@ class BifrostClient:
             "model": data.get("model", self.model),
             "prompt_tokens": int(usage.get("prompt_tokens") or 0),
             "completion_tokens": int(usage.get("completion_tokens") or 0),
+            "usage_available": "prompt_tokens" in usage and "completion_tokens" in usage,
             "latency_ms": round(latency, 2),
             "request_id": data.get("id", ""),
             "finish_reason": finish_reason,
@@ -395,8 +397,14 @@ def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fau
             except Exception as exc:
                 result, status, error = {}, "failed", str(exc)[:1000]
             duration = round((time.perf_counter() - started) * 1000, 2)
-            cost = calculate_model_cost(str(result.get("model", "")), int(result.get("prompt_tokens", 0)),
-                                        int(result.get("completion_tokens", 0)), pricing) if result.get("model") else None
+            usage_available = result.get(
+                "usage_available",
+                "prompt_tokens" in result and "completion_tokens" in result,
+            )
+            cost = calculate_model_cost(
+                str(result.get("model", "")), int(result.get("prompt_tokens", 0)),
+                int(result.get("completion_tokens", 0)), pricing,
+            ) if result.get("model") and usage_available
             conn.execute("""INSERT INTO benchmark_runs
                 (id,experiment_id,agent,repetition,status,output,error,prompt_tokens,completion_tokens,
                  tool_calls,steps,duration_ms,tool_latency_ms,model,trace_json,sources_json,
