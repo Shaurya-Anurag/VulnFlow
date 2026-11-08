@@ -9,7 +9,7 @@ import type {
 } from "../types";
 import "./VulnFlowShell.css";
 import { BenchmarkView } from "./BenchmarkView";
-import type { AgentWorkflowResult } from "../api";
+import type { AgentWorkflowResult, VerityxVerificationResponse } from "../api";
 
 export interface VulnFlowShellProps {
   summary: DashboardSummary | null;
@@ -27,6 +27,9 @@ export interface VulnFlowShellProps {
   onRunAgentWorkflow: (findingId: string) => void | Promise<void>;
   agentWorkflow: AgentWorkflowResult | null;
   agentWorkflowLoading: boolean;
+  onVerifyWithVerityx: (findingId: string) => void | Promise<void>;
+  verityxVerification: VerityxVerificationResponse | null;
+  verityxLoading: boolean;
   onTransition: (findingId: string, status: FindingStatus, reason: string) => void | Promise<void>;
   onCreateApproval: (findingId: string, action: string) => void | Promise<void>;
   onDecideApproval: (approvalId: string, decision: "approved" | "rejected", reason: string) => void | Promise<void>;
@@ -159,6 +162,9 @@ export function VulnFlowShell({
   onRunAgentWorkflow,
   agentWorkflow,
   agentWorkflowLoading,
+  onVerifyWithVerityx,
+  verityxVerification,
+  verityxLoading,
   onTransition,
   onCreateApproval,
   onDecideApproval,
@@ -307,6 +313,19 @@ export function VulnFlowShell({
                   </div>
                   <p className="vf-analysis-limit">{reviewBrief.limitations.join(" ")}</p>
                 </> : <p className="vf-empty-inline">Generate a deterministic brief from the imported observations, locations and evidence. No target is contacted and no vulnerability is independently verified.</p>}
+              </section>
+              <section className="vf-subsection vf-card">
+                <SectionHeading eyebrow="Live evidence intelligence" title="Verityx verification" aside={<button type="button" className="vf-button vf-button--primary" disabled={verityxLoading || selected.synthetic} onClick={() => void onVerifyWithVerityx(selected.id)}>{verityxLoading ? "Checking current evidence…" : "Verify with Verityx"}</button>} />
+                <p className="vf-muted-copy">Sends the imported finding, scanner provenance and supplied evidence to the independent Verityx service for live retrieval and evidence assessment. This does not independently reproduce the vulnerability.</p>
+                {verityxVerification?.finding_id === selected.id && <div className="vf-agent-chain">
+                  <p className="vf-soft-tag">VERITYX · {verityxVerification.assessment.status.replace(/_/g, " ")} · {dateLabel(verityxVerification.assessment.created_at)}</p>
+                  <p className="vf-analysis-summary">{verityxVerification.assessment.summary}</p>
+                  <p className="vf-analysis-limit">{verityxVerification.assessment.rationale}</p>
+                  <p className="vf-muted-copy">Method: {verityxVerification.assessment.method}{verityxVerification.assessment.freshness_score !== null ? ` · Evidence freshness/coverage: ${verityxVerification.assessment.freshness_score}/100 (not a probability of truth)` : " · No freshness score returned"}</p>
+                  <strong>Retrieved sources ({verityxVerification.assessment.evidence.length})</strong>
+                  {verityxVerification.assessment.evidence.map((source, index) => <article className="vf-evidence" key={source.url || index}><strong>{source.title}</strong><small>{source.source}{source.published_date ? ` · ${source.published_date}` : ""}</small><p>{source.content}</p>{source.url && <a href={source.url} target="_blank" rel="noreferrer">Open source ↗</a>}</article>)}
+                </div>}
+                {selected.synthetic && <p className="vf-analysis-limit">Synthetic demo findings cannot be sent for verification.</p>}
               </section>
               <section className="vf-subsection vf-card">
                 <SectionHeading eyebrow="Guided workflow" title="Investigate → request human review" />
