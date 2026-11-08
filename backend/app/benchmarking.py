@@ -46,8 +46,11 @@ class AgentRegistry:
         self._agents: dict[str, AgentAdapter] = {}
 
     def register(self, agent: AgentAdapter) -> None:
-        if not isinstance(agent, AgentAdapter):
-            raise TypeError("Registered agents must implement AgentAdapter")
+        # Structural validation lets adapters wrap LangGraph, CrewAI, AutoGen,
+        # or custom agents without inheriting from this module's base class.
+        execute = getattr(agent, "execute", None)
+        if not callable(execute):
+            raise TypeError("Registered agents must expose a callable execute(task, fault=None)")
         name = getattr(agent, "name", "")
         if not isinstance(name, str) or not name.strip():
             raise ValueError("Agent name must be a non-empty string")
