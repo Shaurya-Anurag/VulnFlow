@@ -33,6 +33,56 @@ class BenchmarkContractTests(unittest.TestCase):
             self.assertIn("tool unavailable", next(x["error"] for x in result["runs"]
                                                   if x["agent"] == "tavily-assisted-bifrost"))
 
+    def test_injected_structural_agent_executes_and_persists_repeated_runs(self):
+        class ExternalAgent:
+            name = "external-test-agent"
+
+            def execute(self, task, fault=None):
+                return {
+                    "output": "External result: " + task["prompt"],
+                    "steps": 1,
+                    "tool_calls": 0,
+                    "trace": [{"step": 1, "kind": "external"}],
+                }
+
+        from backend.app.benchmarking import AgentRegistry
+
+        registry = AgentRegistry()
+        registry.register(ExternalAgent())
+        with tempfile.TemporaryDirectory() as folder:
+            db = str(Path(folder) / "bench.sqlite3")
+            result = run_experiment(
+                db, {"prompt": "test task"}, repetitions=2, registry=registry
+            )
+
+        self.assertEqual(len(result["runs"]), 2)
+        self.assertTrue(all(row["agent"] == "external-test-agent" for row in result["runs"]))
+        self.assertTrue(all(row["status"] == "completed" for row in result["runs"]))
+        self.assertEqual(result["agents"][0]["runs"], 2)
+        self.assertEqual(result["runs"][0]["trace_json"], '[{"step": 1, "kind": "external"}]')
+
+    def test_injected_agent_receives_fault_scenario(self):
+        class FaultAwareAgent:
+            name = "fault-aware-agent"
+
+            def execute(self, task, fault=None):
+                if fault == "misleading_instruction":
+                    raise RuntimeError("Injected misleading instruction scenario")
+                return {"output": "ok", "steps": 1}
+
+        from backend.app.benchmarking import AgentRegistry
+
+        registry = AgentRegistry()
+        registry.register(FaultAwareAgent())
+        with tempfile.TemporaryDirectory() as folder:
+            result = run_experiment(
+                str(Path(folder) / "bench.sqlite3"),
+                {"prompt": "test task"}, repetitions=1,
+                fault="misleading_instruction", registry=registry,
+            )
+        self.assertEqual(result["runs"][0]["status"], "failed")
+        self.assertIn("misleading instruction", result["runs"][0]["error"])
+
     def test_sql_injection_rubric_reports_transparent_heuristic_criteria(self):
         evaluation = evaluate_answer(
             {"prompt": "Explain SQL injection and prevention"},

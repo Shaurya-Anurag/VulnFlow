@@ -277,7 +277,7 @@ def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fau
         for agent in agents:
             run_id, started = str(uuid.uuid4()), time.perf_counter()
             try:
-                result = agent.execute(task, fault if (fault != "tool_unavailable" or agent.name == "tavily-assisted-bifrost") else None)
+                result = agent.execute(task, fault)
                 status, error = "completed", ""
             except Exception as exc:
                 result, status, error = {}, "failed", str(exc)[:1000]
