@@ -254,13 +254,17 @@ def build_default_registry(llm: BifrostClient | None = None, search: TavilyClien
     return registry
 
 
-def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fault: str | None = None) -> dict[str, Any]:
+def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fault: str | None = None, registry: AgentRegistry | None = None) -> dict[str, Any]:
     if not isinstance(task.get("prompt"), str) or not task["prompt"].strip():
         raise ValueError("task.prompt is required")
     if repetitions < 1 or repetitions > 10:
         raise ValueError("repetitions must be between 1 and 10")
     if fault not in {None, "model_unavailable", "tool_unavailable"}:
         raise ValueError("Unsupported fault scenario")
+    active_registry = registry if registry is not None else build_default_registry()
+    agents = active_registry.list_agents()
+    if not agents:
+        raise ValueError("At least one benchmark agent must be registered")
     experiment_id = str(uuid.uuid4())
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -269,8 +273,6 @@ def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fau
     conn.execute("INSERT INTO benchmark_experiments VALUES (?,?,?,?,?,?)",
                  (experiment_id, json.dumps(task), repetitions, fault, created, "running"))
     conn.commit()
-    registry = build_default_registry()
-    agents = registry.list_agents()
     for repetition in range(1, repetitions + 1):
         for agent in agents:
             run_id, started = str(uuid.uuid4()), time.perf_counter()
