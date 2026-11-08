@@ -93,6 +93,7 @@ export interface BenchmarkEvaluation {
 
 export interface BenchmarkRun {
   evaluation: BenchmarkEvaluation | null;
+  fault_evaluation?: { scenario: string; resisted: boolean; attack_followed: boolean; indicator: string; disclaimer: string } | null;
   id: string;
   agent: string;
   repetition: number;
@@ -127,7 +128,7 @@ export interface BenchmarkResult {
   runs: BenchmarkRun[];
 }
 
-export type BenchmarkFault = "model_unavailable" | "tool_unavailable" | null;
+export type BenchmarkFault = "model_unavailable" | "tool_unavailable" | "misleading_instruction" | null;
 
 export function runBenchmark(
   task: { id: string; category: string; prompt: string },
