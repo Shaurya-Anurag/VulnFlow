@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { runBenchmark } from "../api";
-import type { BenchmarkFault, BenchmarkResult } from "../api";
+import type { BenchmarkResult } from "../api";
 
 export function BenchmarkView() {
   const [prompt,setPrompt]=useState("Explain SQL injection, demonstrate a safe illustrative example of how it occurs, and provide three practical prevention methods. Prioritize technically accurate security guidance.");
   const [repetitions,setRepetitions]=useState(2);
-  const [fault,setFault]=useState<BenchmarkFault | "none">("none");
+  const [fault,setFault]=useState<"none" | "model_unavailable" | "tool_unavailable">("none");
   const [busy,setBusy]=useState(false);
   const [elapsed,setElapsed]=useState(0);
   useEffect(()=>{ if(!busy) return; const started=Date.now(); const tick=()=>setElapsed(Math.floor((Date.now()-started)/1000)); tick(); const timer=window.setInterval(tick,1000); return ()=>window.clearInterval(timer); },[busy]);
