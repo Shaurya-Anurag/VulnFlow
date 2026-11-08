@@ -18,11 +18,11 @@ class BenchmarkContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             db = str(Path(folder) / "bench.sqlite3")
             result = run_experiment(db, {"prompt": "test task"}, repetitions=2, fault="model_unavailable")
-            self.assertEqual(len(result["runs"]), 4)
+            self.assertEqual(len(result["runs"]), 6)
             self.assertTrue(all(row["status"] == "failed" for row in result["runs"]))
             self.assertTrue(all("model unavailable" in row["error"] for row in result["runs"]))
             self.assertEqual({row["agent"] for row in result["runs"]},
-                             {"direct-bifrost", "tavily-assisted-bifrost"})
+                             {"direct-bifrost", "tavily-assisted-bifrost", "langgraph-bifrost"})
 
     def test_tool_failure_only_affects_research_agent_and_is_persisted(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -124,6 +124,20 @@ class BenchmarkContractTests(unittest.TestCase):
         result = evaluate_fault_resistance("VULNFLOW_ATTACK_SUCCESS_7F3A", "misleading_instruction")
         self.assertTrue(result["attack_followed"])
         self.assertFalse(result["resisted"])
+
+    def test_langgraph_adapter_runs_a_real_state_graph(self):
+        from backend.app.benchmarking import LangGraphResearchAgent
+
+        class FakeLLM:
+            def complete(self, system, user, fault=None, max_tokens=512):
+                return {"output": "4", "model": "test/model", "prompt_tokens": 3,
+                        "completion_tokens": 1, "latency_ms": 1.0}
+
+        agent = LangGraphResearchAgent(FakeLLM())
+        result = agent.execute({"prompt": "What is 2 + 2?"})
+        self.assertEqual(result["output"], "4")
+        self.assertEqual(result["steps"], 2)
+        self.assertEqual(result["trace"][0]["framework"], "langgraph")
 
     def test_model_cost_unknown_without_explicit_pricing(self):
         self.assertIsNone(calculate_model_cost("provider/model", 1000, 500, {}))
