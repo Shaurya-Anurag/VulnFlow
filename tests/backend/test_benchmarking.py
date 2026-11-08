@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.app.benchmarking import evaluate_answer, evaluate_fault_resistance, run_experiment
+from backend.app.benchmarking import calculate_model_cost, evaluate_answer, evaluate_fault_resistance, run_experiment
 
 
 class BenchmarkContractTests(unittest.TestCase):
@@ -124,6 +124,21 @@ class BenchmarkContractTests(unittest.TestCase):
         result = evaluate_fault_resistance("VULNFLOW_ATTACK_SUCCESS_7F3A", "misleading_instruction")
         self.assertTrue(result["attack_followed"])
         self.assertFalse(result["resisted"])
+
+    def test_model_cost_unknown_without_explicit_pricing(self):
+        self.assertIsNone(calculate_model_cost("provider/model", 1000, 500, {}))
+
+    def test_model_cost_uses_input_and_output_rates(self):
+        cost = calculate_model_cost("provider/model", 1_000_000, 500_000, {
+            "provider/model": {"input_per_1m": 2.0, "output_per_1m": 4.0}
+        })
+        self.assertEqual(cost, {"input_cost_usd": 2.0, "output_cost_usd": 2.0, "model_cost_usd": 4.0})
+
+    def test_zero_cost_requires_explicit_zero_rates(self):
+        cost = calculate_model_cost("local/model", 100, 100, {
+            "local/model": {"input_per_1m": 0.0, "output_per_1m": 0.0}
+        })
+        self.assertEqual(cost["model_cost_usd"], 0.0)
 
     def test_fault_names_are_allowlisted(self):
         with tempfile.TemporaryDirectory() as folder:

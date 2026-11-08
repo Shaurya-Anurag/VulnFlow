@@ -106,6 +106,9 @@ export interface BenchmarkRun {
   completion_tokens: number;
   tool_calls: number;
   steps: number;
+  input_cost_usd: number | null;
+  output_cost_usd: number | null;
+  model_cost_usd: number | null;
   trace_json: string;
   sources_json: string;
 }
@@ -123,6 +126,8 @@ export interface BenchmarkResult {
     avg_duration_ms: number;
     avg_tokens: number;
     avg_tool_calls: number;
+    avg_model_cost_usd: number | null;
+    priced_runs: number;
     avg_heuristic_score: number | null;
   }[];
   runs: BenchmarkRun[];

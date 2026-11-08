@@ -46,8 +46,9 @@ The MVP binds to loopback and restricts browser origins to the local UI. Do not 
 VulnFlow now includes an initial framework-neutral research benchmark runner with two adapters:
 - `direct-bifrost`: direct model response through Bifrost.
 - `tavily-assisted-bifrost`: Tavily retrieval followed by Bifrost synthesis.
+- `langgraph-bifrost`: a real LangGraph `StateGraph` with preparation and inference nodes, using the same Bifrost gateway.
 
-Both receive the same task prompt. Repetitions, fault scenario, per-run status, output, steps, tool calls, token usage, latency, sources and step traces are stored in the existing local SQLite database in dedicated benchmark tables. API routes:
+All receive the same task through the framework-neutral adapter contract. Repetitions, fault scenario, per-run status, output, steps, tool calls, token usage, latency, sources, step traces, and nullable model-cost fields are stored in SQLite. Existing databases are migrated automatically. API routes:
 - `POST /api/benchmarks/run` with `{"task":{"id":"research-001","prompt":"..."}, "repetitions":2, "fault":null}`
 - `GET /api/benchmarks/{experiment_id}`
 
@@ -56,8 +57,11 @@ Environment configuration (set in the backend process environment; never commit 
 - `BIFROST_VIRTUAL_KEY`
 - `BIFROST_MODEL` (default `openai/gpt-4o-mini`)
 - `TAVILY_API_KEY`
+- `VULNFLOW_MODEL_PRICING_JSON` (optional JSON keyed by the exact returned model identifier; each value requires `input_per_1m` and `output_per_1m` USD rates). Example: `{"provider/model":{"input_per_1m":0.15,"output_per_1m":0.60}}`.
 
-Supported controlled failures: `model_unavailable` and `tool_unavailable`. These are deterministic injected failures, not real provider outages. This first iteration records provider token usage where returned; monetary cost, richer retry/failover semantics, misleading-instruction suites, Docker isolation, and production-grade run cancellation remain future work. Do not claim these are implemented until added and tested.
+Model inference cost is calculated only when an explicit rate exists. Missing rates are `unknown` (`NULL`), never silently treated as zero. Costs exclude Tavily/tool charges and local infrastructure. An explicitly configured zero rate is valid. Existing DBs gain nullable cost columns automatically.
+
+Supported controlled failures: `model_unavailable`, `tool_unavailable`, and `misleading_instruction`. These are controlled scenarios, not proof of resilience or real provider outages. The misleading-instruction check is marker-based only. LangGraph is a real framework integration; other frameworks can use the structural adapter contract. Docker isolation, richer retry/failover semantics, and production-grade run cancellation remain future work.
 
 Run backend tests from repository root:
 ```powershell
