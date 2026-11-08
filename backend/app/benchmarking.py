@@ -39,6 +39,33 @@ class AgentAdapter(ABC):
     @abstractmethod
     def execute(self, task: dict[str, Any], fault: str | None = None) -> dict[str, Any]: ...
 
+class AgentRegistry:
+    """Explicit registry for framework-neutral benchmark agents."""
+
+    def __init__(self) -> None:
+        self._agents: dict[str, AgentAdapter] = {}
+
+    def register(self, agent: AgentAdapter) -> None:
+        if not isinstance(agent, AgentAdapter):
+            raise TypeError("Registered agents must implement AgentAdapter")
+        name = getattr(agent, "name", "")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Agent name must be a non-empty string")
+        if name in self._agents:
+            raise ValueError(f"Agent already registered: {name}")
+        self._agents[name] = agent
+
+    def get(self, name: str) -> AgentAdapter:
+        try:
+            return self._agents[name]
+        except KeyError as exc:
+            raise KeyError(f"Unknown benchmark agent: {name}") from exc
+
+    def list_agents(self) -> list[AgentAdapter]:
+        """Return registered agents in registration order."""
+        return list(self._agents.values())
+
+
 class BifrostClient:
     def __init__(self) -> None:
         self.base = os.getenv("BIFROST_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
@@ -214,6 +241,16 @@ def evaluate_answer(task: dict[str, Any], output: str) -> dict[str, Any]:
             "passed": passed, "total": total, "criteria": criteria,
             "disclaimer": "Keyword-based screening only; it does not establish technical correctness or replace expert review."}
 
+def build_default_registry(llm: BifrostClient | None = None, search: TavilyClient | None = None) -> AgentRegistry:
+    """Construct and register the built-in agents; external adapters can use the same contract."""
+    llm_client = llm or BifrostClient()
+    search_client = search or TavilyClient()
+    registry = AgentRegistry()
+    registry.register(DirectResearchAgent(llm_client))
+    registry.register(TavilyResearchAgent(llm_client, search_client))
+    return registry
+
+
 def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fault: str | None = None) -> dict[str, Any]:
     if not isinstance(task.get("prompt"), str) or not task["prompt"].strip():
         raise ValueError("task.prompt is required")
@@ -229,8 +266,8 @@ def run_experiment(db_path: str, task: dict[str, Any], repetitions: int = 2, fau
     conn.execute("INSERT INTO benchmark_experiments VALUES (?,?,?,?,?,?)",
                  (experiment_id, json.dumps(task), repetitions, fault, created, "running"))
     conn.commit()
-    llm = BifrostClient()
-    agents: list[AgentAdapter] = [DirectResearchAgent(llm), TavilyResearchAgent(llm, TavilyClient())]
+    registry = build_default_registry()
+    agents = registry.list_agents()
     for repetition in range(1, repetitions + 1):
         for agent in agents:
             run_id, started = str(uuid.uuid4()), time.perf_counter()
