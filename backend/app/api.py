@@ -221,7 +221,7 @@ def verify_finding_with_verityx(finding_id: str, request: Request) -> dict[str, 
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=80) as response:
+        with urllib.request.urlopen(req, timeout=210) as response:
             result = json.loads(response.read(2_000_000).decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read(2000).decode("utf-8", "replace")
