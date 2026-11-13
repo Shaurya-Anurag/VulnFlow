@@ -89,6 +89,21 @@ export interface VerityxAssessment {
 }
 export interface VerityxVerificationResponse { finding_id: string; assessment: VerityxAssessment; }
 
+export interface PersistedVerityxAssessment {
+  id: string;
+  finding_id: string;
+  verityx_analysis_id: string;
+  status: VerityxAssessment["status"];
+  method: string;
+  summary: string;
+  created_at: string;
+  assessment: VerityxAssessment;
+}
+
+export function loadVerityxAssessmentHistory(findingId: string) {
+  return request<PersistedVerityxAssessment[]>(`/findings/${encodeURIComponent(findingId)}/verityx-assessments`);
+}
+
 export interface BenchmarkEvaluation {
   type: string;
   category: string;
