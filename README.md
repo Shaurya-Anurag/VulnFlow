@@ -109,3 +109,23 @@ For the agent benchmark demonstration, open **Benchmarks**, run a security task,
 ## Switch integration disclosure
 
 The current repository does not implement live Switch roster/session connectivity or demonstrate a shared-room agent handoff. The Agent Network view explicitly reports this limitation. Do not describe the current benchmark adapters as Switch-connected agents unless that integration is implemented and verified.
+
+
+## Build validation
+
+Run from the repository root:
+
+```powershell
+python -m pip install -e .\\backend
+python -m compileall -q backend/app
+python -m unittest discover -s tests/backend -v
+cd frontend
+npm.cmd ci
+npm.cmd run build
+```
+
+GitHub Actions runs the backend test suite and TypeScript/Vite production build on pushes and pull requests. External-provider workflows require local Bifrost/Tavily configuration and are not represented as provider-independent CI checks.
+
+## Verityx integration
+
+Set `VERITYX_BASE_URL=http://127.0.0.1:8030` in the VulnFlow backend environment. Start Verityx independently with its own Tavily and Bifrost configuration. Use the finding-level **Verify with Verityx** action to retrieve an evidence assessment; the result is persisted in VulnFlow and recorded in the audit log. A Verityx result is evidence intelligence, not proof of exploitability or patch correctness.

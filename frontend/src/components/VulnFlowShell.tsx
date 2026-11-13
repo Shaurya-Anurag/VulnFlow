@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, type ChangeEvent, type ReactNode } from "react";
+﻿import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import type {
   ActivityEvent,
   Approval,
@@ -9,7 +9,8 @@ import type {
 } from "../types";
 import "./VulnFlowShell.css";
 import { BenchmarkView } from "./BenchmarkView";
-import type { AgentWorkflowResult } from "../api";
+import { loadVerityxAssessmentHistory } from "../api";
+import type { AgentWorkflowResult, PersistedVerityxAssessment, VerityxVerificationResponse } from "../api";
 
 export interface VulnFlowShellProps {
   summary: DashboardSummary | null;
@@ -27,6 +28,9 @@ export interface VulnFlowShellProps {
   onRunAgentWorkflow: (findingId: string) => void | Promise<void>;
   agentWorkflow: AgentWorkflowResult | null;
   agentWorkflowLoading: boolean;
+  onVerifyWithVerityx: (findingId: string) => void | Promise<void>;
+  verityxVerification: VerityxVerificationResponse | null;
+  verityxLoading: boolean;
   onTransition: (findingId: string, status: FindingStatus, reason: string) => void | Promise<void>;
   onCreateApproval: (findingId: string, action: string) => void | Promise<void>;
   onDecideApproval: (approvalId: string, decision: "approved" | "rejected", reason: string) => void | Promise<void>;
@@ -159,6 +163,9 @@ export function VulnFlowShell({
   onRunAgentWorkflow,
   agentWorkflow,
   agentWorkflowLoading,
+  onVerifyWithVerityx,
+  verityxVerification,
+  verityxLoading,
   onTransition,
   onCreateApproval,
   onDecideApproval,
@@ -171,6 +178,9 @@ export function VulnFlowShell({
   const [transitionReason, setTransitionReason] = useState("");
   const [approvalAction, setApprovalAction] = useState(ACTIONS[0].id);
   const [approvalReasons, setApprovalReasons] = useState<Record<string, string>>({});
+  const [verityxHistory, setVerityxHistory] = useState<PersistedVerityxAssessment[]>([]);
+  const [verityxHistoryLoading, setVerityxHistoryLoading] = useState(false);
+  const [verityxHistoryError, setVerityxHistoryError] = useState<string | null>(null);
 
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredFindings = useMemo(() => findings.filter((finding) => {
@@ -180,6 +190,34 @@ export function VulnFlowShell({
     return matchesSearch && matchesFilter;
   }), [findings, findingFilter, normalizedSearch]);
   const selected = findings.find((finding) => finding.id === selectedId) ?? filteredFindings[0] ?? findings[0] ?? null;
+
+  useEffect(() => {
+    if (!selected || selected.synthetic) {
+      setVerityxHistory([]);
+      setVerityxHistoryError(null);
+      setVerityxHistoryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setVerityxHistoryLoading(true);
+    setVerityxHistoryError(null);
+    loadVerityxAssessmentHistory(selected.id)
+      .then((history) => {
+        if (!cancelled) setVerityxHistory(history);
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) {
+          setVerityxHistory([]);
+          setVerityxHistoryError(caught instanceof Error ? caught.message : "Unable to load Verityx assessment history.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setVerityxHistoryLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [selected?.id, selected?.synthetic, verityxVerification?.assessment.created_at]);
   const currentPage = PAGE_META[view];
   const activeStages = ["reported", "investigating", "planned", "patching", "verifying"] as const;
   const needsReview = activeStages.reduce((total, state) => total + (summary?.by_status[state] ?? 0), 0);
@@ -307,6 +345,53 @@ export function VulnFlowShell({
                   </div>
                   <p className="vf-analysis-limit">{reviewBrief.limitations.join(" ")}</p>
                 </> : <p className="vf-empty-inline">Generate a deterministic brief from the imported observations, locations and evidence. No target is contacted and no vulnerability is independently verified.</p>}
+              </section>
+              <section className="vf-subsection vf-card">
+                <SectionHeading eyebrow="Live evidence intelligence" title="Verityx verification" aside={<button type="button" className="vf-button vf-button--primary" disabled={verityxLoading || selected.synthetic} onClick={() => void onVerifyWithVerityx(selected.id)}>{verityxLoading ? "Checking current evidence…" : "Verify with Verityx"}</button>} />
+                <p className="vf-muted-copy">Sends the imported finding, scanner provenance and supplied evidence to the independent Verityx service for live retrieval and evidence assessment. This does not independently reproduce the vulnerability.</p>
+                {verityxVerification?.finding_id === selected.id && <div className="vf-agent-chain">
+                  <p className="vf-soft-tag">VERITYX · {verityxVerification.assessment.status.replace(/_/g, " ")} · {dateLabel(verityxVerification.assessment.created_at)}</p>
+                  <p className="vf-analysis-summary">{verityxVerification.assessment.summary}</p>
+                  <p className="vf-analysis-limit">{verityxVerification.assessment.rationale}</p>
+                  <p className="vf-muted-copy">Method: {verityxVerification.assessment.method}{verityxVerification.assessment.freshness_score !== null ? ` · Evidence freshness/coverage: ${verityxVerification.assessment.freshness_score}/100 (not a probability of truth)` : " · No freshness score returned"}</p>
+                  <strong>Retrieved sources ({verityxVerification.assessment.evidence.length})</strong>
+                  {verityxVerification.assessment.evidence.map((source, index) => <article className="vf-evidence" key={source.url || index}><strong>{source.title}</strong><small>{source.source}{source.published_date ? ` · ${source.published_date}` : ""}</small><p>{source.content}</p>{source.url && <a href={source.url} target="_blank" rel="noreferrer">Open source ↗</a>}</article>)}
+                </div>}
+
+                {selected.synthetic && <p className="vf-analysis-limit">Synthetic demo findings cannot be sent for verification.</p>}
+              </section>
+              <section className="vf-subsection vf-card">
+                <SectionHeading eyebrow="Persisted records" title={`Verityx assessment history · ${verityxHistory.length}`} />
+                <p className="vf-muted-copy">Assessments saved by VulnFlow for this finding. History is loaded from the local API and survives page reloads.</p>
+                {verityxHistoryLoading && <p className="vf-empty-inline" role="status">Loading assessment history…</p>}
+                {verityxHistoryError && <p className="vf-analysis-limit" role="alert">History could not be loaded: {verityxHistoryError}</p>}
+                {!verityxHistoryLoading && !verityxHistoryError && verityxHistory.length === 0 && <p className="vf-empty-inline">No persisted Verityx assessments for this finding yet.</p>}
+                {verityxHistory.map((record) => {
+                  const assessment = record.assessment;
+                  return <article className="vf-evidence vf-verityx-history" key={record.id}>
+                    <div className="vf-section-heading">
+                      <strong>{record.status.replace(/_/g, " ")}</strong>
+                      <small>{dateLabel(record.created_at)}</small>
+                    </div>
+                    <div className="vf-detail-grid">
+                      <Info label="Method" value={record.method || "Not recorded"} />
+                      <Info label="Freshness / coverage" value={assessment?.freshness_score == null ? "Not scored" : `${assessment.freshness_score}/100`} />
+                      <Info label="Assessment ID" value={record.id} />
+                      <Info label="Analysis ID" value={record.verityx_analysis_id || assessment?.id || "Not recorded"} />
+                    </div>
+                    <p className="vf-analysis-summary">{record.summary || assessment?.summary || "No summary recorded."}</p>
+                    {assessment?.rationale && <p className="vf-analysis-limit">{assessment.rationale}</p>}
+                    <details>
+                      <summary>Evidence sources ({assessment?.evidence?.length ?? 0})</summary>
+                      {(assessment?.evidence ?? []).length ? (assessment?.evidence ?? []).map((source, index) => <article className="vf-evidence" key={source.url || index}>
+                        <strong>{source.title || source.source || "Untitled source"}</strong>
+                        <small>{source.source || "Source not recorded"}{source.published_date ? ` · ${source.published_date}` : " · Publication date unavailable"}</small>
+                        <p>{source.content}</p>
+                        {source.url && <a href={source.url} target="_blank" rel="noreferrer">Open source ↗</a>}
+                      </article>) : <p className="vf-empty-inline">No retrieved sources were stored with this assessment.</p>}
+                    </details>
+                  </article>;
+                })}
               </section>
               <section className="vf-subsection vf-card">
                 <SectionHeading eyebrow="Guided workflow" title="Investigate → request human review" />

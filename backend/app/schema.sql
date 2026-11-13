@@ -92,3 +92,18 @@ CREATE TRIGGER IF NOT EXISTS audit_events_no_update
 BEFORE UPDATE ON audit_events BEGIN SELECT RAISE(ABORT, 'audit events are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS audit_events_no_delete
 BEFORE DELETE ON audit_events BEGIN SELECT RAISE(ABORT, 'audit events are append-only'); END;
+
+
+-- Immutable snapshots of Verityx assessments, linked to canonical findings.
+CREATE TABLE IF NOT EXISTS verityx_assessments (
+    id TEXT PRIMARY KEY,
+    finding_id TEXT NOT NULL REFERENCES findings(id) ON DELETE RESTRICT,
+    verityx_analysis_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('current','potentially_stale','contradicted','insufficient_evidence')),
+    method TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    assessment_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_verityx_assessments_finding
+ON verityx_assessments(finding_id, created_at DESC);

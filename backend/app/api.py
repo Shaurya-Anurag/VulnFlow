@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import os
+import urllib.error
+import urllib.request
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator
@@ -10,7 +13,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 
-from .audit import list_events
+from .audit import append_event, list_events
 from .analysis import build_review_brief
 from .benchmarking import run_experiment
 from .orchestration import run_agent_workflow, get_agent_workflow
@@ -128,8 +131,17 @@ def _decode_json(raw: bytes) -> Any:
 
 
 @router.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "mode": "local-single-user"}
+def health() -> dict[str, Any]:
+    base = os.environ.get("VERITYX_BASE_URL", "http://127.0.0.1:8030").rstrip("/")
+    integration: dict[str, Any] = {"status": "unavailable", "url": base}
+    try:
+        with urllib.request.urlopen(base + "/api/health", timeout=3) as response:
+            data = json.loads(response.read(65536).decode("utf-8"))
+            integration["status"] = "healthy" if data.get("status") == "ok" else "degraded"
+            integration["integrations"] = data.get("integrations", {})
+    except Exception as exc:
+        integration["error"] = str(exc)[:200]
+    return {"status": "ok", "mode": "local-single-user", "integrations": {"verityx": integration}}
 
 
 @router.get("/dashboard")
@@ -171,6 +183,86 @@ def finding_detail(finding_id: str, request: Request) -> dict[str, Any]:
         if row is None:
             raise HTTPException(status_code=404, detail="Finding not found")
         return _finding(conn, row)
+
+
+@router.post("/findings/{finding_id}/verify")
+def verify_finding_with_verityx(finding_id: str, request: Request) -> dict[str, Any]:
+    """Send a finding to Verityx; persist the returned evidence assessment."""
+    finding_id = _valid_id(finding_id)
+    with _connection(request) as conn:
+        row = conn.execute("SELECT * FROM findings WHERE id=?", (finding_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Finding not found")
+        finding = _finding(conn, row)
+
+    base = os.environ.get("VERITYX_BASE_URL", "http://127.0.0.1:8030").rstrip("/")
+    evidence_lines = [
+        f"Imported evidence: {str(x.get('excerpt') or '')[:700]} {str(x.get('uri') or '')[:500]}"
+        for x in finding.get("evidence", [])[:8]
+    ]
+    scanner_context = "; ".join(
+        f"{x.get('tool_name') or 'unknown scanner'} {x.get('tool_version') or ''} rule {x.get('rule_id') or ''}"
+        for x in finding.get("observations", [])[:8]
+    )
+    claim = (
+        f"Security finding: {finding.get('title')}. Reported severity: {finding.get('severity')}. "
+        f"Affected resource: {finding.get('resource') or 'not specified'}. "
+        f"Rule: {finding.get('rule_id') or 'not specified'}. "
+        f"Description: {finding.get('description') or 'not supplied'}. "
+        f"Scanner provenance: {scanner_context or 'not supplied'}. "
+        + " ".join(evidence_lines)
+        + " Verify current advisory status, affected versions, vendor guidance, exploit status and remediation status. "
+          "Treat every imported detail as an unverified claim."
+    )[:5000]
+    req = urllib.request.Request(
+        base + "/api/analyze",
+        data=json.dumps({"claim": claim, "max_results": 8}).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=210) as response:
+            result = json.loads(response.read(2_000_000).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read(2000).decode("utf-8", "replace")
+        raise HTTPException(status_code=502, detail=f"Verityx returned HTTP {exc.code}: {detail}") from None
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=503, detail=f"Verityx unavailable or invalid response: {str(exc)[:250]}") from None
+
+    required = {"id", "status", "summary", "evidence", "created_at", "method"}
+    if not isinstance(result, dict) or not required.issubset(result):
+        raise HTTPException(status_code=502, detail="Verityx response did not match the expected assessment contract")
+    if result["status"] not in {"current", "potentially_stale", "contradicted", "insufficient_evidence"}:
+        raise HTTPException(status_code=502, detail="Verityx returned an unsupported assessment status")
+
+    assessment_id = str(result["id"])
+    with _connection(request) as conn:
+        conn.execute(
+            """INSERT INTO verityx_assessments
+               (id,finding_id,verityx_analysis_id,status,method,summary,assessment_json,created_at)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (assessment_id, finding_id, assessment_id, result["status"], str(result["method"]),
+             str(result["summary"])[:4000], json.dumps(result, ensure_ascii=False), str(result["created_at"])),
+        )
+        append_event(conn, "verityx-integration", "finding.verityx_verified", "finding", finding_id,
+                     {"assessment_id": assessment_id, "status": result["status"],
+                      "method": result["method"], "evidence_count": len(result.get("evidence", []))})
+    return {"finding_id": finding_id, "assessment": result}
+
+
+@router.get("/findings/{finding_id}/verityx-assessments")
+def list_finding_verityx_assessments(finding_id: str, request: Request) -> list[dict[str, Any]]:
+    finding_id = _valid_id(finding_id)
+    with _connection(request) as conn:
+        if conn.execute("SELECT 1 FROM findings WHERE id=?", (finding_id,)).fetchone() is None:
+            raise HTTPException(status_code=404, detail="Finding not found")
+        rows = conn.execute(
+            "SELECT * FROM verityx_assessments WHERE finding_id=? ORDER BY created_at DESC LIMIT 50",
+            (finding_id,),
+        ).fetchall()
+    return [{"id": r["id"], "finding_id": r["finding_id"], "verityx_analysis_id": r["verityx_analysis_id"],
+             "status": r["status"], "method": r["method"], "summary": r["summary"],
+             "created_at": r["created_at"], "assessment": json.loads(r["assessment_json"])} for r in rows]
 
 
 @router.post("/imports")

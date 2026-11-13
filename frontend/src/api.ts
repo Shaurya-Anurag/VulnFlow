@@ -7,7 +7,7 @@ import type {
   ReviewBrief,
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8010/api";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -80,6 +80,30 @@ export function runAgentWorkflow(findingId: string) {
 }
 
 
+
+export interface VerityxAssessment {
+  id: string; claim: string;
+  status: "current" | "potentially_stale" | "contradicted" | "insufficient_evidence";
+  summary: string; freshness_score: number | null; created_at: string; method: string; rationale: string;
+  evidence: { title: string; url: string; content: string; source: string; published_date: string | null; score: number | null }[];
+}
+export interface VerityxVerificationResponse { finding_id: string; assessment: VerityxAssessment; }
+
+export interface PersistedVerityxAssessment {
+  id: string;
+  finding_id: string;
+  verityx_analysis_id: string;
+  status: VerityxAssessment["status"];
+  method: string;
+  summary: string;
+  created_at: string;
+  assessment: VerityxAssessment;
+}
+
+export function loadVerityxAssessmentHistory(findingId: string) {
+  return request<PersistedVerityxAssessment[]>(`/findings/${encodeURIComponent(findingId)}/verityx-assessments`);
+}
+
 export interface BenchmarkEvaluation {
   type: string;
   category: string;
@@ -145,3 +169,5 @@ export function runBenchmark(
     body: JSON.stringify({ task, repetitions, fault }),
   });
 }
+
+export function verifyFindingWithVerityx(findingId: string) { return request<VerityxVerificationResponse>(`/findings/${encodeURIComponent(findingId)}/verify`, { method: "POST" }); }
